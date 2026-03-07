@@ -33,7 +33,7 @@ public class LogService {
         if (logs.size() > MAX_LOGS) {
             logs.remove(logs.size() - 1);
         }
-        System.out.println(logEntry);
+        System.out.println(">>> [LOG] " + logEntry);
     }
 
     public static void addActionLog(com.babyguard.server.model.TelegramAction action) {

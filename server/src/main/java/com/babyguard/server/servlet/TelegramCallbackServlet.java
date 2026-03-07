@@ -23,6 +23,7 @@ public class TelegramCallbackServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        System.out.println("[TelegramCallbackServlet] Received a POST request from Telegram");
         StringBuilder buffer = new StringBuilder();
         String line;
         try (BufferedReader reader = request.getReader()) {
@@ -32,9 +33,15 @@ public class TelegramCallbackServlet extends HttpServlet {
         }
 
         String json = buffer.toString();
-        LogService.addFormattedLog("Telegram", "Webhook nhận dữ liệu", "Đang xử lý Callback...");
+        System.out.println("[TelegramCallbackServlet] Raw JSON: " + json);
+        LogService.addFormattedLog("Telegram", "Webhook nhận dữ liệu", "Đang xử lý...");
 
         try {
+            if (json == null || json.isEmpty()) {
+                System.out.println("[TelegramCallbackServlet] Empty JSON body");
+                response.setStatus(HttpServletResponse.SC_OK);
+                return;
+            }
             JsonObject update = JsonParser.parseString(json).getAsJsonObject();
             if (update.has("callback_query")) {
                 JsonObject callbackQuery = update.getAsJsonObject("callback_query");
