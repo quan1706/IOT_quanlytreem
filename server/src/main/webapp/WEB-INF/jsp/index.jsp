@@ -271,7 +271,15 @@
                         </div>
                     </div>
 
-                    <a href="https://t.me/${botName}" target="_blank" class="btn-test">Open Bot on Telegram</a>
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <a href="chat" class="btn-test"
+                            style="background: var(--card-bg); border: 1px solid var(--primary);">
+                            <i class="fas fa-robot"></i> AI Chat Logs
+                        </a>
+                        <a href="https://t.me/${botName}" target="_blank" class="btn-test">
+                            <i class="fab fa-telegram-plane"></i> Open Telegram Bot
+                        </a>
+                    </div>
 
                     <p class="footer">Deepmind AI x Baby Guard Project</p>
                 </div>
