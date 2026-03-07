@@ -1,5 +1,6 @@
 package com.babyguard.server.servlet;
 
+import com.babyguard.server.model.TelegramAction;
 import com.babyguard.server.service.ESP32Service;
 import com.babyguard.server.service.LogService;
 import com.babyguard.server.service.TelegramService;
@@ -60,7 +61,7 @@ public class TelegramCallbackServlet extends HttpServlet {
                 }
 
                 // Tao class rieng de dong goi thong tin (theo yeu cau User)
-                com.babyguard.server.model.TelegramAction actionObj = new com.babyguard.server.model.TelegramAction(
+                TelegramAction actionObj = new TelegramAction(
                         userName, "Bấm nút [" + data + "]", "Đang xử lý");
 
                 // Ghi log tu class rieng thong qua method moi
