@@ -38,11 +38,17 @@ public class Config {
             if (ESP32_IP == null)
                 ESP32_IP = prop.getProperty("esp32.ip");
 
+            String tokenSnippet = (TELEGRAM_BOT_TOKEN != null && TELEGRAM_BOT_TOKEN.length() > 5)
+                    ? TELEGRAM_BOT_TOKEN.substring(0, 5) + "..."
+                    : "Invalid";
+            LogService.addLog("[Config] Cấu hình Ready: Bot=" + BOT_USERNAME + ", Token=" + tokenSnippet + " (Length: "
+                    + (TELEGRAM_BOT_TOKEN != null ? TELEGRAM_BOT_TOKEN.length() : 0) + ")");
+
             GROQ_API_KEY = System.getenv("GROQ_API_KEY");
             if (GROQ_API_KEY == null)
                 GROQ_API_KEY = prop.getProperty("groq.api.key");
 
-            LogService.addLog("[Config] Cấu hình Ready: Bot=" + BOT_USERNAME + ", IP=" + ESP32_IP);
+            LogService.addLog("[Config] IP phần cứng: " + ESP32_IP);
             ESP32_COMMAND_URL = "http://" + ESP32_IP + "/command";
         } catch (Exception e) {
             e.printStackTrace();
