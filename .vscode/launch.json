@@ -1,0 +1,14 @@
+{
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Spring Boot-BabyCryApplication<babycry>",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "mainClass": "com.iot.babycry.BabyCryApplication",
+      "projectName": "babycry",
+      "args": "",
+      "envFile": "${workspaceFolder}/.env"
+    }
+  ]
+}
