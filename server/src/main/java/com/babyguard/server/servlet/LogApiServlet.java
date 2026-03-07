@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
 
-@WebServlet("/api/logs")
+@WebServlet({ "/api/logs", "/api/test-log" })
 public class LogApiServlet extends HttpServlet {
     private final Gson gson = new Gson();
 
@@ -20,16 +20,22 @@ public class LogApiServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        String path = request.getRequestURI();
+        if (path.endsWith("/test-log")) {
+            LogService.addFormattedLog("ManualTest", "Bấm nút Test Log", "Thành công");
+            response.setStatus(HttpServletResponse.SC_OK);
+            return;
+        }
+
         List<String> logs = LogService.getLogs();
         String json = gson.toJson(logs);
-
-        System.out.println("[LogApi] Trả về " + logs.size() + " dòng log cho AJAX");
 
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
 
-        PrintWriter out = response.getWriter();
-        out.print(json);
-        out.flush();
+        try (PrintWriter out = response.getWriter()) {
+            out.print(json);
+            out.flush();
+        }
     }
 }

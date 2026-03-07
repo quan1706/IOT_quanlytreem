@@ -32,6 +32,7 @@ public class TelegramCallbackServlet extends HttpServlet {
         }
 
         String json = buffer.toString();
+        LogService.addFormattedLog("Telegram", "Webhook nhận dữ liệu", "Đang xử lý Callback...");
 
         try {
             JsonObject update = JsonParser.parseString(json).getAsJsonObject();
@@ -55,8 +56,8 @@ public class TelegramCallbackServlet extends HttpServlet {
                 com.babyguard.server.model.TelegramAction actionObj = new com.babyguard.server.model.TelegramAction(
                         userName, "Bấm nút [" + data + "]", "Đang xử lý");
 
-                // Ghi log tu class rieng
-                LogService.addLog(actionObj.toString());
+                // Ghi log tu class rieng thong qua method moi
+                LogService.addActionLog(actionObj);
 
                 // Gui phan hoi ve Telegram cho nguoi dung
                 String feedbackMsg = "✅ Đã nhận lệnh: *" + data + "* từ " + userName;
