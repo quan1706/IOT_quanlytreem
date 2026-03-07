@@ -5,6 +5,9 @@
          version="6.0">
     <display-name>Baby Guard Server</display-name>
     
-    <!-- Servlets are registered via annotations, so web.xml can be empty 
-         but exists here to help IDEs like NetBeans recognize the Web Project -->
+    <listener>
+        <listener-class>com.babyguard.server.config.AppContextListener</listener-class>
+    </listener>
+
+    <!-- Servlets are registered via annotations, but listeners can be explicit -->
 </web-app>

@@ -32,6 +32,15 @@ public class TelegramCallbackServlet extends HttpServlet {
     }
 
     @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        LogService.addLog("[Telegram] Nhận yêu cầu GET kiểm tra từ: " + request.getRemoteAddr());
+        response.setContentType("text/plain;charset=UTF-8");
+        response.getWriter().write("Telegram Callback Endpoint is ALIVE! Token length: " +
+                (Config.TELEGRAM_BOT_TOKEN != null ? Config.TELEGRAM_BOT_TOKEN.length() : "NULL"));
+    }
+
+    @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
