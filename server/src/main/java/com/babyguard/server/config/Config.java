@@ -51,6 +51,7 @@ public class Config {
 
             LogService.addLog("[Config] IP phần cứng: " + ESP32_IP);
 
+            SERVER_URL = System.getenv("SERVER_URL");
             if (SERVER_URL == null || SERVER_URL.isEmpty()) {
                 SERVER_URL = prop.getProperty("server.url", "");
             }
@@ -58,9 +59,9 @@ public class Config {
             if (SERVER_URL != null && SERVER_URL.endsWith("/")) {
                 SERVER_URL = SERVER_URL.substring(0, SERVER_URL.length() - 1);
             }
-            LogService.addLog("[Config] Server URL được nạp: "
-                    + (SERVER_URL == null || SERVER_URL.isEmpty() ? "BỊ TRỐNG (Cần set trên Render)" : SERVER_URL));
-            LogService.addLog("[Config] Server URL: " + (SERVER_URL.isEmpty() ? "BỊ TRỐNG" : SERVER_URL));
+
+            LogService.addLog(
+                    "[Config] Server URL: " + (SERVER_URL == null || SERVER_URL.isEmpty() ? "TRỐNG" : SERVER_URL));
 
             ESP32_COMMAND_URL = "http://" + ESP32_IP + "/command";
         } catch (Exception e) {
