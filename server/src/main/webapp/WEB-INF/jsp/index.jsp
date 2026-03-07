@@ -245,7 +245,7 @@
                         </div>
                         <div class="info-item">
                             <p class="info-label">Server Time</p>
-                            <p class="info-value">${time}</p>
+                            <p id="server-time" class="info-value">${time}</p>
                         </div>
                         <div class="info-item" style="grid-column: span 2;">
                             <p class="info-label">Endpoints Operational</p>
@@ -278,8 +278,18 @@
             </div>
 
             <script>
+                // Hàm cập nhật đồng hồ thời gian thực
+                function updateClock() {
+                    const now = new Date();
+                    const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
+                        now.getMinutes().toString().padStart(2, '0') + ':' +
+                        now.getSeconds().toString().padStart(2, '0');
+                    document.getElementById('server-time').textContent = timeStr;
+                }
+
                 function updateLogs() {
-                    fetch('${pageContext.request.contextPath}/api/logs')
+                    // Sử dụng đường dẫn tương đối để đảm bảo chạy đúng trên Render
+                    fetch('api/logs')
                         .then(response => {
                             if (!response.ok) throw new Error('Network response was not ok');
                             return response.json();
@@ -299,11 +309,19 @@
                 }
 
                 function testLog() {
-                    fetch('${pageContext.request.contextPath}/api/test-log')
-                        .then(() => updateLogs());
+                    fetch('api/test-log')
+                        .then(() => {
+                            setTimeout(updateLogs, 500); // Đợi một chút để server ghi log xong
+                        });
                 }
 
-                setInterval(updateLogs, 3000);
+                // Chạy ngay khi load
+                updateClock();
+                updateLogs();
+
+                // Thiết lập lặp lại
+                setInterval(updateClock, 1000); // Cập nhật đồng hồ mỗi giây
+                setInterval(updateLogs, 3000);  // Cập nhật log mỗi 3 giây
             </script>
         </body>
 
