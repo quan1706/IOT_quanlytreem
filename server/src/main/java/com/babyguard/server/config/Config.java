@@ -12,6 +12,7 @@ public class Config {
     public static String ESP32_COMMAND_URL;
     public static String GROQ_API_KEY;
     public static String GROQ_MODEL = "llama-3.3-70b-versatile";
+    public static String SERVER_URL;
 
     static {
         try (InputStream input = Config.class.getClassLoader().getResourceAsStream("application.properties")) {
@@ -49,6 +50,15 @@ public class Config {
                 GROQ_API_KEY = prop.getProperty("groq.api.key");
 
             LogService.addLog("[Config] IP phần cứng: " + ESP32_IP);
+
+            SERVER_URL = System.getenv("SERVER_URL");
+            if (SERVER_URL == null)
+                SERVER_URL = prop.getProperty("server.url", "");
+
+            if (SERVER_URL.endsWith("/")) {
+                SERVER_URL = SERVER_URL.substring(0, SERVER_URL.length() - 1);
+            }
+
             ESP32_COMMAND_URL = "http://" + ESP32_IP + "/command";
         } catch (Exception e) {
             e.printStackTrace();
