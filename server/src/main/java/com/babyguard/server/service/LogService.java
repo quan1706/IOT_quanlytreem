@@ -36,6 +36,11 @@ public class LogService {
         System.out.println(logEntry);
     }
 
+    public static void addActionLog(com.babyguard.server.model.TelegramAction action) {
+        // Sử dụng timestamp từ object hoặc tạo mới nếu cần
+        addFormattedLog(action.getPerformer(), action.getAction(), action.getResult());
+    }
+
     public static List<String> getLogs() {
         return new ArrayList<>(logs);
     }

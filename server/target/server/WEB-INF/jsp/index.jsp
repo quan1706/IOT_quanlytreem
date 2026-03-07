@@ -252,15 +252,18 @@
                     <div class="card">
                         <div class="card-header">
                             <i class="fas fa-list-ul"></i> RECENT LOGS
+                            <button onclick="testLog()"
+                                style="margin-left: auto; background: none; border: 1px solid var(--primary); color: var(--primary); font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; cursor: pointer;">Test
+                                Log</button>
                         </div>
                         <div class="log-container">
+                            <c:if test="${empty logs}">
+                                <div id="no-logs" class="log-item" style="color: #666;">No logs available yet...
+                                    (Waiting for ESP32)</div>
+                            </c:if>
                             <c:forEach var="log" items="${logs}">
                                 <div class="log-item">${log}</div>
                             </c:forEach>
-                            <c:if test="${empty logs}">
-                                <div class="log-item" style="color: #666;">No logs available yet... (Waiting for ESP32)
-                                </div>
-                            </c:if>
                         </div>
                     </div>
 
@@ -274,22 +277,38 @@
                 // Hàm cập nhật log mượt mà không cần reload trang
                 function updateLogs() {
                     fetch('${pageContext.request.contextPath}/api/logs')
-                        .then(response => response.json())
-                        .then(logs => {
+                        .then(response => {
+                            if (!response.ok) throw new Error('Network response was not ok: ' + response.status);
+                            return response.text(); // Lấy dưới dạng text để tự parse cho an toàn
+                        })
+                        .then(data => {
+                            let logs = [];
+                            try {
+                                logs = JSON.parse(data);
+                            } catch (e) {
+                                console.error('Lỗi parse JSON:', e, 'Dữ liệu nhận được:', data);
+                                return;
+                            }
+
                             const container = document.querySelector('.log-container');
-                            if (logs.length === 0) {
+                            if (!Array.isArray(logs) || logs.length === 0) {
                                 container.innerHTML = '<div class="log-item" style="color: #666;">No logs available yet... (Waiting for ESP32)</div>';
                                 return;
                             }
 
-                            // Tạo HTML mới cho danh sách log (Dùng cộng chuỗi để tránh xung đột với JSP EL)
-                            var html = '';
-                            for (var i = 0; i < logs.length; i++) {
+                            // Tạo HTML mới cực kỳ cẩn thận
+                            let html = '';
+                            for (let i = 0; i < logs.length; i++) {
                                 html += '<div class="log-item">' + logs[i] + '</div>';
                             }
                             container.innerHTML = html;
                         })
                         .catch(err => console.error('Lỗi khi cập nhật log:', err));
+                }
+
+                function testLog() {
+                    fetch('${pageContext.request.contextPath}/api/test-log')
+                        .then(() => updateLogs());
                 }
 
                 // Cập nhật ngay khi load trang
