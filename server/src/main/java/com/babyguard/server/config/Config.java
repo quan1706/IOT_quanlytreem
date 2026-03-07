@@ -10,6 +10,8 @@ public class Config {
     public static String TELEGRAM_CHAT_ID;
     public static String ESP32_IP;
     public static String ESP32_COMMAND_URL;
+    public static String GROQ_API_KEY;
+    public static String GROQ_MODEL = "llama-3.3-70b-versatile";
 
     static {
         try (InputStream input = Config.class.getClassLoader().getResourceAsStream("application.properties")) {
@@ -35,6 +37,10 @@ public class Config {
             ESP32_IP = System.getenv("ESP32_IP");
             if (ESP32_IP == null)
                 ESP32_IP = prop.getProperty("esp32.ip");
+
+            GROQ_API_KEY = System.getenv("GROQ_API_KEY");
+            if (GROQ_API_KEY == null)
+                GROQ_API_KEY = prop.getProperty("groq.api.key");
 
             LogService.addLog("[Config] Cấu hình Ready: Bot=" + BOT_USERNAME + ", IP=" + ESP32_IP);
             ESP32_COMMAND_URL = "http://" + ESP32_IP + "/command";

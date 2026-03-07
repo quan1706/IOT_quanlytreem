@@ -1,5 +1,6 @@
 package com.babyguard.server.service;
 
+import com.babyguard.server.ai.AIChatLog;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -8,40 +9,43 @@ import java.util.List;
 
 public class LogService {
     private static final List<String> logs = Collections.synchronizedList(new ArrayList<>());
+    private static final List<AIChatLog> aiChatLogs = Collections.synchronizedList(new ArrayList<>());
     private static final int MAX_LOGS = 50;
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     public static void addLog(String message) {
         String timestamp = LocalDateTime.now().format(formatter);
         String logEntry = "[" + timestamp + "] " + message;
-
-        logs.add(0, logEntry); // Add to top
-        if (logs.size() > MAX_LOGS) {
+        logs.add(0, logEntry);
+        if (logs.size() > MAX_LOGS)
             logs.remove(logs.size() - 1);
-        }
-
-        // Also print to console for backup
         System.out.println(logEntry);
     }
 
     public static void addFormattedLog(String performer, String action, String result) {
         String timestamp = LocalDateTime.now().format(formatter);
-        // Format: [HH:mm:ss] - Performer - Action - Result
         String logEntry = String.format("[%s] - %s - %s - %s", timestamp, performer, action, result);
-
         logs.add(0, logEntry);
-        if (logs.size() > MAX_LOGS) {
+        if (logs.size() > MAX_LOGS)
             logs.remove(logs.size() - 1);
-        }
         System.out.println(">>> [LOG] " + logEntry);
     }
 
     public static void addActionLog(com.babyguard.server.model.TelegramAction action) {
-        // Sử dụng timestamp từ object hoặc tạo mới nếu cần
         addFormattedLog(action.getPerformer(), action.getAction(), action.getResult());
+    }
+
+    public static void addAiChatLog(AIChatLog aiLog) {
+        aiChatLogs.add(0, aiLog);
+        if (aiChatLogs.size() > MAX_LOGS)
+            aiChatLogs.remove(aiChatLogs.size() - 1);
     }
 
     public static List<String> getLogs() {
         return new ArrayList<>(logs);
+    }
+
+    public static List<AIChatLog> getAiChatLogs() {
+        return new ArrayList<>(aiChatLogs);
     }
 }

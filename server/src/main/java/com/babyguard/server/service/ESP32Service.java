@@ -16,6 +16,7 @@ public class ESP32Service {
     public void sendCommand(String command) {
         LogService.addFormattedLog("Server", "Gửi lệnh [" + command + "] cho ESP32", "Đang kết nối...");
         String json = "{\"cmd\":\"" + command + "\"}";
+        LogService.addLog("[ESP32] SEND JSON: " + json);
         RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
 
         Request request = new Request.Builder()
