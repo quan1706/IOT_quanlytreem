@@ -23,11 +23,18 @@ public class TelegramCallbackServlet extends HttpServlet {
     private final ESP32Service esp32Service = new ESP32Service();
     private final TelegramService telegramService = new TelegramService();
     private final AIController aiController = new AIController();
-    private AIChatLog currentPendingLog = null;
+
+    @Override
+    public void init() throws ServletException {
+        super.init();
+        LogService.addLog("[TelegramServlet] Servlet đã khởi tạo và sẵn sàng tại /telegram/callback");
+    }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+
+        LogService.addLog("[Telegram] Nhận yêu cầu POST từ: " + request.getRemoteAddr());
 
         StringBuilder buffer = new StringBuilder();
         String line;
@@ -37,7 +44,7 @@ public class TelegramCallbackServlet extends HttpServlet {
         }
 
         String json = buffer.toString();
-        LogService.addLog("[Telegram] RECV JSON: " + json);
+        LogService.addLog("[Telegram] RECV JSON: " + (json.isEmpty() ? "(Empty Body)" : json));
         try {
             if (json == null || json.isEmpty()) {
                 response.setStatus(HttpServletResponse.SC_OK);
