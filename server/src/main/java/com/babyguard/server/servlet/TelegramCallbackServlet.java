@@ -76,16 +76,19 @@ public class TelegramCallbackServlet extends HttpServlet {
     }
 
     private void handleMessage(JsonObject message) {
-        if (!message.has("text"))
-            return;
-        String text = message.get("text").getAsString();
-        String chatId = message.getAsJsonObject("chat").get("id").getAsString();
-        String userName = getUserName(message.getAsJsonObject("from"));
+        LogService.addLog("[Telegram] Nhận tin nhắn từ: " + userName + " (Type: "
+                + message.getAsJsonObject("chat").get("type").getAsString() + ")");
+        LogService.addLog("[Telegram] Nội dung: " + text);
+        LogService.addLog("[Telegram] Đang kiểm tra mention: @" + Config.BOT_USERNAME);
 
         if (text.contains("@" + Config.BOT_USERNAME)
                 || message.getAsJsonObject("chat").get("type").getAsString().equals("private")) {
+
             String commandText = text.replace("@" + Config.BOT_USERNAME, "").trim();
+            LogService.addLog("[Telegram] Command sau khi xử lý: " + commandText);
+
             String actionCode = aiController.analyzeIntent(commandText);
+            LogService.addLog("[AI] Kết quả phân tích intent: " + actionCode);
 
             // Ghi nhật ký Chat Monitor
             currentPendingLog = new AIChatLog(userName, commandText, actionCode != null ? actionCode : "none");
@@ -93,10 +96,14 @@ public class TelegramCallbackServlet extends HttpServlet {
 
             if (actionCode != null) {
                 String confirmMsg = "🤖 *AI Phân tích:* Bạn muốn tôi thực hiện lệnh `" + actionCode + "` đúng không?";
+                LogService.addLog("[Telegram] Gửi tin nhắn xác nhận cho: " + actionCode);
                 telegramService.sendMessageWithConfirmation(chatId, confirmMsg, actionCode);
             } else {
+                LogService.addLog("[Telegram] AI không hiểu intent, gửi tin nhắn xin lỗi");
                 telegramService.sendMessage(chatId, "😅 Xin lỗi " + userName + ", tôi không hiểu lệnh đó.");
             }
+        } else {
+            LogService.addLog("[Telegram] Tin nhắn không phải mention bot hoặc chat riêng, bỏ qua.");
         }
     }
 
