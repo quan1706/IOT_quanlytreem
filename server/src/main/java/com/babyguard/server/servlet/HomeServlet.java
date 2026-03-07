@@ -15,7 +15,7 @@ public class HomeServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        System.out.println("[HomeServlet] Request received at root context path");
+        System.out.println("[HomeServlet] Rendering Dashboard UI");
         request.setAttribute("title", "Baby Guard Dashboard");
         request.setAttribute("systemStatus", "OPERATIONAL");
         request.setAttribute("time",
