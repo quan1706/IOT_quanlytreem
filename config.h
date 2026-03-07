@@ -7,6 +7,12 @@
 #define CONFIG_H
 
 // ─────────────────────────────────────────────
+// Edge Impulse: dùng static allocation cho tensor arena
+// Tránh lỗi "failed to allocate tensor arena" do phân mảnh heap
+// ─────────────────────────────────────────────
+#define EI_CLASSIFIER_ALLOCATION_STATIC 1
+
+// ─────────────────────────────────────────────
 // I2S Microphone Pins (INMP441)
 // ─────────────────────────────────────────────
 #define I2S_WS   25       // Word Select (LRCLK)
@@ -43,13 +49,13 @@
 // Hướng dẫn lấy chat_id: chat với @userinfobot
 // ─────────────────────────────────────────────
 #define TELEGRAM_BOT_TOKEN   "8765806795:AAEB83HSeGkpYYv0JsnnPz6IaiSCvlDOn_w"   // ← token từ @BotFather
-#define TELEGRAM_CHAT_ID     "5288120841"               // ← chat_id của bạn
+#define TELEGRAM_CHAT_ID     "-5283283687"              // ← chat_id của Group baby_guard
 #define TELEGRAM_COOLDOWN_MS 30000  // Gửi tối đa 1 tin mỗi 30 giây (tránh spam)
 
 // ─────────────────────────────────────────────
 // DSP Thresholds (Filtering)
 // ─────────────────────────────────────────────
-#define RMS_THRESHOLD         200.0f  // Minimum energy to trigger inference (adjust based on noise)
+#define RMS_THRESHOLD         150.0f  // Minimum energy to trigger inference (adjust based on noise)
 #define ZCR_THRESHOLD_MIN     0.05f   // Minimum Zero Crossing Rate for cry
 #define ZCR_THRESHOLD_MAX     0.35f   // Maximum Zero Crossing Rate for cry
 #define GOERTZEL_TARGET_FREQ  450.0f  // Target fundamental frequency (Hz) for cry

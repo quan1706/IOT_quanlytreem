@@ -11,9 +11,9 @@
  *   audio_types.h        → shared structs
  */
 
-#include <Baby_Cry_Detection_Large_Data_inferencing.h>
 #include "config.h"
 #include "audio_types.h"
+#include <Baby_Cry_Detection_Large_Data_inferencing.h>
 
 // ─────────────────────────────────────────────
 void setup() {
@@ -24,16 +24,17 @@ void setup() {
     // 1. Kết nối WiFi
     wifi_manager_begin();
 
-    // 2. Khởi tạo Telegram Bot (sau khi có WiFi)
-    if (wifi_is_connected()) {
-        telegram_begin();
-    }
-
-    // 3. Khởi tạo microphone + cấp phát buffer
+    // 2. Khởi tạo microphone + cấp phát buffer
+    //    (Telegram bot sẽ tự khởi tạo khi cần gửi tin nhắn đầu tiên,
+    //     để dành RAM cho tensor arena.)
     if (!microphone_inference_start(EI_CLASSIFIER_RAW_SAMPLE_COUNT)) {
         ei_printf("ERR: Khong du bo nho RAM cho Model\r\n");
         return;
     }
+
+    // (Bỏ test telegram ở đây vì SSL handshake tốn quá nhiều RAM,
+    // dễ gây treo ESP32 khi đang khởi động I2S và Tensor Arena.
+    // Bot sẽ tự init LAZY khi có cảnh báo đầu tiên).
 
     ei_printf("Dang lang nghe am thanh...\n");
 }
@@ -53,7 +54,11 @@ void loop() {
     // Nếu quá im lặng thì bỏ qua inference để tiết kiệm CPU
     float rms = calculate_rms(inference.buffer, inference.n_samples);
     if (DEBUG_DSP) {
-        Serial.printf("RMS: %.2f (Thresh: %.2f)\n", rms, (float)RMS_THRESHOLD);
+        ei_printf("RMS: ");
+        ei_printf_float(rms);
+        ei_printf(" (Thresh: ");
+        ei_printf_float(RMS_THRESHOLD);
+        ei_printf(")\n");
     }
     
     if (rms < RMS_THRESHOLD) {

@@ -12,6 +12,7 @@
  */
 
 #include "config.h"
+#include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <UniversalTelegramBot.h>
 
@@ -31,13 +32,36 @@ void telegram_begin() {
 }
 
 // ─────────────────────────────────────────────
+// Gửi tin nhắn test khi khởi động (xác nhận kết nối)
+// ─────────────────────────────────────────────
+void telegram_send_test() {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[Telegram Test] Khong co WiFi.");
+        return;
+    }
+    if (bot == nullptr) {
+        telegram_begin();
+    }
+    bool ok = bot->sendMessage(TELEGRAM_CHAT_ID, "✅ Baby Guard ONLINE - He thong dang hoat dong!", "");
+    if (ok) {
+        Serial.println("[Telegram Test] Gui test OK!");
+    } else {
+        Serial.println("[Telegram Test] GUI THAT BAI! Kiem tra BOT_TOKEN va CHAT_ID.");
+    }
+}
+
+// ─────────────────────────────────────────────
 // Gửi tin nhắn cảnh báo đến TELEGRAM_CHAT_ID
 // Chỉ gửi khi WiFi đang connected & bot đã init
 // ─────────────────────────────────────────────
 void telegram_send_alert(const char* label, float confidence) {
+    // Lazy init: allocate SSL client + bot only on first real alert
     if (bot == nullptr) {
-        Serial.println("[Telegram] Bot chua duoc khoi tao.");
-        return;
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("[Telegram] Khong co WiFi, bo qua gui tin.");
+            return;
+        }
+        telegram_begin();
     }
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("[Telegram] Khong co WiFi, bo qua gui tin.");
