@@ -23,6 +23,7 @@ public class TelegramCallbackServlet extends HttpServlet {
     private final ESP32Service esp32Service = new ESP32Service();
     private final TelegramService telegramService = new TelegramService();
     private final AIController aiController = new AIController();
+    private AIChatLog currentPendingLog = null;
 
     @Override
     public void init() throws ServletException {
