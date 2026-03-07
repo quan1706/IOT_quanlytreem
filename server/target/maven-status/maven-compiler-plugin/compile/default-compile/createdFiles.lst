@@ -1,0 +1,11 @@
+com\babyguard\server\service\ESP32Service.class
+com\babyguard\server\servlet\LogApiServlet.class
+com\babyguard\server\service\TelegramService$1.class
+com\babyguard\server\servlet\TelegramCallbackServlet.class
+com\babyguard\server\service\LogService.class
+com\babyguard\server\service\ESP32Service$1.class
+com\babyguard\server\config\Config.class
+com\babyguard\server\servlet\CryServlet.class
+com\babyguard\server\model\TelegramAction.class
+com\babyguard\server\service\TelegramService.class
+com\babyguard\server\servlet\HomeServlet.class
