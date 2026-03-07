@@ -49,15 +49,27 @@ void loop() {
         return;
     }
 
-    // 2. Chuẩn bị signal cho Edge Impulse
+    // 2. Kiểm tra biên độ âm thanh (Amplitude Gate)
+    // Nếu quá im lặng thì bỏ qua inference để tiết kiệm CPU
+    float rms = calculate_rms(inference.buffer, inference.n_samples);
+    if (DEBUG_DSP) {
+        Serial.printf("RMS: %.2f (Thresh: %.2f)\n", rms, (float)RMS_THRESHOLD);
+    }
+    
+    if (rms < RMS_THRESHOLD) {
+        if (DEBUG_DSP) Serial.println("-> Silence: Skipping inference.");
+        return; 
+    }
+
+    // 3. Chuẩn bị signal cho Edge Impulse
     signal_t signal;
     signal.total_length = EI_CLASSIFIER_RAW_SAMPLE_COUNT;
     signal.get_data     = &microphone_audio_signal_get_data;
 
-    // 3. Chạy classifier
+    // 4. Chạy classifier
     ei_impulse_result_t result = { 0 };
     if (!run_inference(&signal, &result)) return;
 
-    // 4. Xử lý kết quả + gửi Telegram nếu phát hiện
+    // 5. Xử lý kết quả + gửi Telegram nếu phát hiện
     process_results(&result);
 }

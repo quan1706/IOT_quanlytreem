@@ -47,8 +47,17 @@
 #define TELEGRAM_COOLDOWN_MS 30000  // Gửi tối đa 1 tin mỗi 30 giây (tránh spam)
 
 // ─────────────────────────────────────────────
+// DSP Thresholds (Filtering)
+// ─────────────────────────────────────────────
+#define RMS_THRESHOLD         200.0f  // Minimum energy to trigger inference (adjust based on noise)
+#define ZCR_THRESHOLD_MIN     0.05f   // Minimum Zero Crossing Rate for cry
+#define ZCR_THRESHOLD_MAX     0.35f   // Maximum Zero Crossing Rate for cry
+#define GOERTZEL_TARGET_FREQ  450.0f  // Target fundamental frequency (Hz) for cry
+
+// ─────────────────────────────────────────────
 // Debug
 // ─────────────────────────────────────────────
-#define DEBUG_NN false  // true = in raw NN output ra Serial
+#define DEBUG_NN   false  // true = in raw NN output ra Serial
+#define DEBUG_DSP  true   // true = in các thông số RMS, ZCR ra Serial
 
 #endif // CONFIG_H
