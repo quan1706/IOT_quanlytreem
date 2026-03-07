@@ -7,22 +7,17 @@ RUN mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-# Stage 2: Run the application using Tomcat
+# Stage 2: Run the application using Tomcat 10
 FROM tomcat:10.1-jdk17-temurin
+WORKDIR /usr/local/tomcat
+
 # Remove default webapps
-RUN rm -rf /usr/local/tomcat/webapps/*
-# Copy the built WAR file as ROOT.war
-COPY --from=build /app/target/*.war /usr/local/tomcat/webapps/ROOT.war
+RUN rm -rf webapps/*
 
-EXPOSE 8080
-# Render will provide the PORT environment variable, but Tomcat defaults to 8080. 
-# We can use a script or just let Render map it, but Tomcat's server.xml usually needs adjustment for $PORT.
-# However, webapp-runner was easier. Let's stick to webapp-runner in Docker for simplicity with $PORT.
+# Copy the built WAR file as ROOT.war so it serves at /
+COPY --from=build /app/target/*.war webapps/ROOT.war
 
-FROM eclipse-temurin:17-jdk
-WORKDIR /app
-COPY --from=build /app/target/*.war app.war
-COPY --from=build /app/target/dependency/webapp-runner.jar webapp-runner.jar
-
-EXPOSE 8080
-CMD java $JAVA_OPTS -jar webapp-runner.jar --port ${PORT:-8080} app.war
+# Render provides the PORT environment variable.
+# We modify Tomcat's server.xml to listen on the port provided by Render.
+# If $PORT is not set, it defaults to 8080.
+CMD ["sh", "-c", "sed -i 's/port=\"8080\"/port=\"'${PORT:-8080}'\"/g' conf/server.xml && catalina.sh run"]
