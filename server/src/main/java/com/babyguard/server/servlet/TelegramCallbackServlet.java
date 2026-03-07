@@ -18,7 +18,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
 
-@WebServlet("/telegram/callback")
+@WebServlet(urlPatterns = "/telegram/callback", loadOnStartup = 1)
 public class TelegramCallbackServlet extends HttpServlet {
     private final ESP32Service esp32Service = new ESP32Service();
     private final TelegramService telegramService = new TelegramService();
