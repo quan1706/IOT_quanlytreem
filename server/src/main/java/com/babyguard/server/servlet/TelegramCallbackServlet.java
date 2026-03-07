@@ -76,6 +76,13 @@ public class TelegramCallbackServlet extends HttpServlet {
     }
 
     private void handleMessage(JsonObject message) {
+        if (!message.has("text"))
+            return;
+
+        String text = message.get("text").getAsString();
+        String chatId = message.getAsJsonObject("chat").get("id").getAsString();
+        String userName = getUserName(message.getAsJsonObject("from"));
+
         LogService.addLog("[Telegram] Nhận tin nhắn từ: " + userName + " (Type: "
                 + message.getAsJsonObject("chat").get("type").getAsString() + ")");
         LogService.addLog("[Telegram] Nội dung: " + text);
