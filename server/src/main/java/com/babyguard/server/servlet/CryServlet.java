@@ -13,7 +13,7 @@ import jakarta.servlet.http.Part;
 import java.io.IOException;
 import java.io.InputStream;
 
-@WebServlet("/cry")
+@WebServlet("/api/cry")
 @MultipartConfig(fileSizeThreshold = 1024 * 1024 * 1, // 1 MB
         maxFileSize = 1024 * 1024 * 10, // 10 MB
         maxRequestSize = 1024 * 1024 * 15 // 15 MB
