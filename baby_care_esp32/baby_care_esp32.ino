@@ -30,10 +30,10 @@
 // ============================================================
 //  CẤU HÌNH WIFI & SERVER - SỬA THÔNG TIN NÀY CHO PHÙ HỢP
 // ============================================================
-const char* WIFI_SSID     = "Phòng 402";           // Tên WiFi nhà bạn
-const char* WIFI_PASSWORD = "79797979";             // Mật khẩu WiFi (SỬA LẠI CHO ĐÚNG)
+const char* WIFI_SSID     = "Iphone 3";           // Tên WiFi nhà bạn
+const char* WIFI_PASSWORD = "11111112";             // Mật khẩu WiFi (SỬA LẠI CHO ĐÚNG)
 
-const char* SERVER_IP     = "192.168.100.206";      // IP máy tính chạy Server
+const char* SERVER_IP     = "172.20.10.6";      // IP máy tính chạy Server
 const int   SERVER_PORT   = 8000;                   // Port WebSocket Server
 const char* SERVER_PATH   = "/xiaozhi/v1/";         // Đường dẫn WebSocket
 
