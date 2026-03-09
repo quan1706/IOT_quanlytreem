@@ -8,32 +8,28 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Thiết lập biến môi trường ngôn ngữ (Set environment variables)
+# Thiết lập biến môi trường ngôn ngữ
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     LANGUAGE=en_US:en \
     PYTHONIOENCODING=utf-8
 
-# Thiết lập thư mục làm việc gốc cho toàn bộ dự án
-WORKDIR /opt/smart-baby-care
+# Thiết lập thư mục làm việc gốc cho Server
+WORKDIR /opt/smart-baby-care/server
 
-# Cấu hình pip để tránh timeout
-RUN pip config set global.timeout 120 && \
-    pip config set install.retries 5
-
-# Copy toàn bộ dự án (bao gồm cả thư mục server và thư mục ESP code) vào Container
-COPY . /opt/smart-baby-care
+# Copy mã nguồn Python vào Container (chỉ lấy phần server_python để giảm dung lượng)
+COPY ./server_python/main/xiaozhi-server /opt/smart-baby-care/server
 
 # Cài đặt các thư viện Python cho Server
-# Trỏ đến file requirements.txt ở bên trong thư mục con xiaozhi-esp32-server/main/xiaozhi-server/
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r xiaozhi-esp32-server/main/xiaozhi-server/requirements.txt --default-timeout=120 --retries 5
+    pip install --no-cache-dir -r requirements.txt --default-timeout=120 --retries 5
 
-# Mở port cho Server hoạt động
+# Cài đặt yt-dlp và ffmpeg-python bị thiếu trong requirements
+RUN pip install --no-cache-dir yt-dlp ffmpeg-python
+
+# Mở port cho Server hoạt động (8000: WebSocket, 8003: HTTP Dashboard)
 EXPOSE 8000
-
-# Đặt thư mục làm việc cuối cùng vào nơi chứa file app.py để tiện chạy server
-WORKDIR /opt/smart-baby-care/xiaozhi-esp32-server/main/xiaozhi-server
+EXPOSE 8003
 
 # Lệnh khởi chạy server (Start application)
 CMD ["python", "app.py"]
