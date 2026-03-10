@@ -20,3 +20,5 @@ Thumbs.db
 # Temporary
 /tmp/
 .gemini/
+
+venv/
