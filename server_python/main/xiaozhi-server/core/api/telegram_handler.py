@@ -1,75 +1,41 @@
 import time
 import asyncio
+import json
 from config.logger import setup_logging
 from core.utils.util import get_local_ip
 
 TAG = "telegram_handler"
+
 
 class TelegramHandler:
     BOT_TOKEN = "8765806795:AAEB83HSeGkpYYv0JsnnPz6IaiSCvlDOn_w"
     CHAT_ID = "-5283283687"
     last_token_alert_time = 0
 
+    # ─────────────────────────────────────────────────────────────────────
+    # Các hàm gửi Telegram cũ — GIỮ LẠI để tương thích ngược
+    # (Sẽ dần dần chuyển hết sang TelegramNotifier)
+    # ─────────────────────────────────────────────────────────────────────
     @staticmethod
     async def send_telegram_alert(message, time_str, current_mode):
-        url = f"https://api.telegram.org/bot{TelegramHandler.BOT_TOKEN}/sendMessage"
-        
-        text = (
-            "🚨 *CẢNH BÁO SMART BABY CARE* 🚨\n\n"
-            f"📍 Phát hiện: *Bé đang khóc!* ({message})\n"
-            f"⏰ Lịch sử ghi nhận lúc: *{time_str}*\n\n"
-        )
-        if current_mode == "auto":
-            text += "🤖 _Hệ thống đang ở CHẾ ĐỘ TỰ ĐỘNG, đã tự mở nhạc dỗ dành bé._"
-        else:
-            text += "👨‍👩‍👧 _Hệ thống đang ở CHẾ ĐỘ GIÁM SÁT, hãy vào kiểm tra bé ngay!_"
-
-        payload = {
-            "chat_id": TelegramHandler.CHAT_ID,
-            "text": text,
-            "parse_mode": "Markdown"
-        }
-        
-        try:
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                await session.post(url, json=payload)
-        except Exception:
-            pass
+        from core.serverToClients import TelegramNotifier
+        notifier = TelegramNotifier()
+        await notifier.send_cry_alert(message, time_str, current_mode)
 
     @staticmethod
     async def send_telegram_token_alert():
-        url = f"https://api.telegram.org/bot{TelegramHandler.BOT_TOKEN}/sendMessage"
+        from core.serverToClients import TelegramNotifier
+        notifier = TelegramNotifier()
         local_ip = get_local_ip()
-        
-        text = (
-            "⚠️ *CẢNH BÁO SMART BABY CARE* ⚠️\n\n"
-            "❌ *LỖI HẾT TOKEN API GROQ (RATE LIMIT)*\n"
-            "Trợ lý AI của bạn hiện không thể suy nghĩ hay trả lời vì đã dùng hết hạn mức miễn phí trong ngày.\n\n"
-            "Vui lòng nhấn vào nút bên dưới để truy cập *Bảng điều khiển (Dashboard)* và Cập nhật API Key mới cho hệ thống!"
-        )
+        await notifier.send_token_alert(local_ip)
 
-        payload = {
-            "chat_id": TelegramHandler.CHAT_ID,
-            "text": text,
-            "parse_mode": "Markdown",
-            "reply_markup": {
-                "inline_keyboard": [
-                    [{"text": "Mở Dashboard Cài Đặt ⚙️", "url": f"http://{local_ip}:8003/"}]
-                ]
-            }
-        }
-        
-        try:
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                await session.post(url, json=payload)
-        except Exception:
-            pass
-
+    # ─────────────────────────────────────────────────────────────────────
+    # AI phân tích intent
+    # ─────────────────────────────────────────────────────────────────────
     @staticmethod
     async def analyze_intent(text, api_key):
-        if not api_key: return None
+        if not api_key:
+            return None
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         prompt = (
@@ -88,8 +54,8 @@ class TelegramHandler:
             "model": "llama3-8b-8192",
             "messages": [
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": text}
-            ]
+                {"role": "user", "content": text},
+            ],
         }
         try:
             import aiohttp
@@ -103,116 +69,249 @@ class TelegramHandler:
             pass
         return None
 
+    # ─────────────────────────────────────────────────────────────────────
+    # Xử lý callback button (phat_nhac, ru_vong, dung, hinh_anh)
+    # ─────────────────────────────────────────────────────────────────────
+    @staticmethod
+    async def _handle_callback_query(callback, session, notifier, logger):
+        """
+        Xử lý khi người dùng nhấn nút inline keyboard trong Telegram.
+        Thực hiện 4 việc:
+          1. Ack callback để Telegram bỏ spinner trên button
+          2. Gửi bot reply trong Telegram
+          3. Ghi log server console
+          4. Cập nhật action_logs trong Dashboard
+        """
+        from core.serverToClients import DashboardUpdater, ESP32Commander, AIProcessor
+
+        cb_data = callback["data"]
+        cb_id = callback.get("id", "")
+        message_cb = callback.get("message", {})
+        chat_id = message_cb.get("chat", {}).get("id")
+        if not chat_id:
+            return
+
+        if cb_data.startswith("confirm_"):
+            command = cb_data.replace("confirm_", "")
+
+            # 1. Ack callback query (bỏ spinner)
+            await notifier.answer_callback_query(cb_id, text="⏳ Đang xử lý...")
+
+            # 2. Ghi log server + dashboard (không có phần cứng)
+            from core.serverToClients import DashboardUpdater
+            DashboardUpdater.add_action_log(
+                action=command,
+                source="telegram_button",
+                result="Đã ghi log (chưa kết nối phần cứng)",
+            )
+
+            # 3. Gửi bot reply trong Telegram
+            command_labels = {
+                "phat_nhac": "🎵 Phát nhạc ru bé",
+                "ru_vong":   "🔄 Đưa võng / nôi",
+                "dung":      "⏹ Dừng tất cả thiết bị",
+                "hinh_anh":  "📸 Chụp ảnh bé",
+            }
+            label = command_labels.get(command, command)
+            reply_text = (
+                f"✅ *Đã xác nhận lệnh: {label}*\n"
+                f"_(Lệnh đã được ghi vào Dashboard.)_"
+            )
+            await notifier.send_message(chat_id, reply_text)
+
+            logger.bind(tag=TAG).info(
+                f"[TELEGRAM BTN] Người dùng nhấn '{command}'"
+            )
+
+        elif cb_data.startswith("ai_confirm_"):
+            command = cb_data.replace("ai_confirm_", "")
+            await notifier.answer_callback_query(cb_id, text="🚀 Thực hiện...")
+            await AIProcessor.execute_confirmed_action(command, chat_id, notifier)
+
+        elif cb_data.startswith("ai_cancel_"):
+            command = cb_data.replace("ai_cancel_", "")
+            await notifier.answer_callback_query(cb_id, text="❌ Đã từ chối")
+            await AIProcessor.cancel_suggested_action(command, chat_id, notifier)
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Vòng lặp polling chính
+    # ─────────────────────────────────────────────────────────────────────
     @staticmethod
     async def start_telegram_bot(dashboard_handler_instance):
-        url = f"https://api.telegram.org/bot{TelegramHandler.BOT_TOKEN}/getUpdates"
-        send_url = f"https://api.telegram.org/bot{TelegramHandler.BOT_TOKEN}/sendMessage"
-        offset = 0
+        from core.serverToClients import TelegramNotifier, DashboardUpdater, AIProcessor
+        from core.api.dashboard_handler import DASHBOARD_STATE
+
+        notifier = TelegramNotifier()
         logger = setup_logging()
-        
+        url = f"https://api.telegram.org/bot{TelegramHandler.BOT_TOKEN}/getUpdates"
+        offset = 0
+        conversation_history = {}  # chat_id → list of {role, content}
+
+        # Thông tin bot để nhận diện tag/mention
+        bot_info = {}
         try:
             import aiohttp
             async with aiohttp.ClientSession() as session:
-                await session.post(send_url, json={
-                    "chat_id": TelegramHandler.CHAT_ID,
-                    "text": "✅ *Hệ Thống Smart Baby Care Đã Khởi Động!*\nBạn có thể điều khiển cấu hình nhanh qua Bot này.\n\nHướng dẫn lệnh:\n`/status` - Xem bảng trạng thái\n`/mode auto` - Bật chế độ Tự động dỗ bé\n`/mode manual` - Bật chế độ Chỉ Giám Sát\n`/setkey gsk_xxxx` - Thay đổi khóa Groq AI qua tin nhắn",
-                    "parse_mode": "Markdown"
-                })
+                async with session.get(f"https://api.telegram.org/bot{TelegramHandler.BOT_TOKEN}/getMe") as resp:
+                    if resp.status == 200:
+                        bot_info = (await resp.json()).get("result", {})
         except Exception:
             pass
+        bot_username = bot_info.get("username", "")
 
-        from core.api.dashboard_handler import DASHBOARD_STATE
+        # Gửi thông báo khởi động
+        try:
+            await notifier.send_startup_message()
+        except Exception:
+            pass
 
         while True:
             try:
                 import aiohttp
                 async with aiohttp.ClientSession() as session:
-                    payload = {"offset": offset, "timeout": 30}
-                    async with session.post(url, json=payload) as response:
+                    payload = {"offset": offset, "timeout": 20}
+                    logger.bind(tag=TAG).info(f"[POLL] Calling getUpdates offset={offset}")
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as response:
                         if response.status == 200:
                             data = await response.json()
-                            if data.get("ok") and data.get("result"):
+                            if not data.get("ok"):
+                                logger.bind(tag=TAG).error(f"[POLL] Telegram error: {data}")
+                            elif data.get("result"):
+                                logger.bind(tag=TAG).info(f"[POLL] Got {len(data['result'])} update(s)")
                                 for update in data["result"]:
                                     offset = update["update_id"] + 1
 
-                                    # Xử lý Nút bấm (Inline Keyboard Confirmation)
+                                    # ── Xử lý nút bấm inline keyboard ──
                                     if "callback_query" in update:
-                                        callback = update["callback_query"]
-                                        cb_data = callback["data"]
-                                        message_cb = callback.get("message", {})
-                                        chat_id = message_cb.get("chat", {}).get("id")
-                                        if not chat_id: continue
-                                        
-                                        response_text = ""
-                                        if cb_data.startswith("confirm_"):
-                                            command = cb_data.replace("confirm_", "")
-                                            response_text = f"✅ Đã xác nhận lệnh: *{command}*\n_(Lệnh đã được gửi xuống thiết bị ESP32 để xử lý)_"
-                                            logger.bind(tag=TAG).info(f"ĐÃ GỬI LỆNH XUỐNG ESP32: {command}")
-                                            # TODO: Kết nối WebSocket với thiết bị ở đây để đẩy lệnh trực tiếp
-                                        elif cb_data == "cancel_action":
-                                            response_text = "❌ Đã hủy lệnh."
-                                        
-                                        if response_text:
-                                            await session.post(send_url, json={"chat_id": chat_id, "text": response_text, "parse_mode": "Markdown"})
+                                        await TelegramHandler._handle_callback_query(
+                                            update["callback_query"],
+                                            session,
+                                            notifier,
+                                            logger,
+                                        )
                                         continue
 
-                                    # Xử lý tin nhắn văn bản thông thường
+                                    # ── Xử lý tin nhắn text ──
                                     message = update.get("message", {})
                                     text = message.get("text", "")
                                     chat_id = message.get("chat", {}).get("id")
-                                    
+                                    chat_type = message.get("chat", {}).get("type") # private, group, supergroup
+
                                     if not text or not chat_id:
                                         continue
-                                        
+
+                                    logger.bind(tag=TAG).info(f"[MSG] chat_type={chat_type} text='{text[:60]}' bot_username='{bot_username}'")
+
+                                    # Check if bot is mentioned or it's a private chat
+                                    is_mentioned = False
+                                    if chat_type == "private":
+                                        is_mentioned = True
+                                    elif bot_username and (f"@{bot_username}" in text):
+                                        is_mentioned = True
+                                    
+                                    # Loại bỏ phần mention bot để AI xử lý nội dung sạch
+                                    clean_text = text
+                                    if bot_username:
+                                        clean_text = text.replace(f"@{bot_username}", "").strip()
+
                                     response_text = ""
-                                    
+
                                     if text.startswith("/status"):
-                                        mode_text = "TỰ ĐỘNG DỖ DÀNH BÉ" if DASHBOARD_STATE["mode"] == "auto" else "CHỈ GIÁM SÁT LỊCH SỬ"
-                                        response_text = f"📊 *Trạng Thái HT:*\n- Chế độ: *{mode_text}*\n- Lịch sử khóc: *{len(DASHBOARD_STATE['cry_history'])}* lần gần đây.\n- Key AI hiện tại: `{dashboard_handler_instance.current_key}`"
-                                    
-                                    elif text == "/mode auto":
-                                        DASHBOARD_STATE["mode"] = "auto"
-                                        response_text = "🔄 Đã đổi sang *CHẾ ĐỘ TỰ ĐỘNG*."
-                                        
-                                    elif text == "/mode manual":
-                                        DASHBOARD_STATE["mode"] = "manual"
-                                        response_text = "🔄 Đã đổi sang *CHẾ ĐỘ GIÁM SÁT*."
-                                        
+                                        mode_text = (
+                                            "TỰ ĐỘNG DỖ DÀNH BÉ"
+                                            if DASHBOARD_STATE["mode"] == "auto"
+                                            else "CHỈ GIÁM SÁT LỊCH SỬ"
+                                        )
+                                        response_text = (
+                                            f"📊 *Trạng Thái HT:*\n"
+                                            f"- Chế độ: *{mode_text}*\n"
+                                            f"- Lịch sử khóc: *{len(DASHBOARD_STATE['cry_history'])}* lần gần đây.\n"
+                                            f"- Hành động gần nhất: *{len(DASHBOARD_STATE.get('action_logs', []))}* mục.\n"
+                                            f"- Key AI hiện tại: `{dashboard_handler_instance.current_key}`"
+                                        )
+                                        DashboardUpdater.add_system_log("Command", "/status", {"mode": DASHBOARD_STATE["mode"]})
+
+                                    elif text.startswith("/mode "):
+                                        new_mode = text.replace("/mode ", "").strip()
+                                        if new_mode in ("auto", "manual"):
+                                            DashboardUpdater.set_mode(new_mode)
+                                            mode_label = "TỰ ĐỘNG DỖ DÀNH BÉ" if new_mode == "auto" else "CHỈ GIÁM SÁT"
+                                            response_text = f"🔄 Đã đổi sang *{mode_label}*."
+                                        else:
+                                            response_text = "❌ Lệnh không đúng. Dùng `/mode auto` hoặc `/mode manual`."
+
                                     elif text.startswith("/setkey "):
                                         new_key = text.replace("/setkey ", "").strip()
                                         if new_key.startswith("gsk_"):
                                             success = dashboard_handler_instance.update_api_key(new_key)
                                             if success:
-                                                response_text = "✅ Đã lưu API Key mới thành công! Bạn hãy tiến hành tắt và chạy lại Server (File run_server.bat) để hệ thống nhận diện khoá mới."
+                                                response_text = (
+                                                    "✅ Đã lưu API Key mới thành công! "
+                                                    "Hãy restart Server để nhận khoá mới."
+                                                )
+                                                DashboardUpdater.add_system_log("Command", "/setkey", {"result": "ok"})
                                             else:
                                                 response_text = "❌ Có lỗi xảy ra khi lưu API Key."
                                         else:
                                             response_text = "❌ API Key không hợp lệ. Hãy bắt đầu bằng `gsk_`!"
+
                                     else:
-                                        # Tính năng mới được chuyển từ Server Java cũ sang
-                                        # Gửi lệnh thường -> Dùng Groq AI phân tích Intent
-                                        intent = await TelegramHandler.analyze_intent(text, dashboard_handler_instance.current_key)
-                                        if intent:
-                                            reply_markup = {
-                                                "inline_keyboard": [
-                                                    [
-                                                        {"text": "✅ Xác nhận", "callback_data": f"confirm_{intent}"},
-                                                        {"text": "❌ Hủy", "callback_data": "cancel_action"}
-                                                    ]
-                                                ]
-                                            }
-                                            await session.post(send_url, json={
-                                                "chat_id": chat_id, 
-                                                "text": f"🤖 *AI Phân tích:* Bạn muốn tôi thực hiện lệnh `{intent}` đúng không?", 
-                                                "parse_mode": "Markdown",
-                                                "reply_markup": reply_markup
-                                            })
-                                        else:
-                                            response_text = "😅 Xin lỗi, tôi không hiểu ý bạn. Hãy thử các câu như: 'mở nhạc lên', 'đưa võng đi'."
-                                            
+                                        # Xử lý AI khi được mention hoặc chat riêng
+                                        if is_mentioned:
+                                            actual_key = dashboard_handler_instance.config.get("LLM", {}).get("GroqLLM", {}).get("api_key", "")
+                                            if not actual_key:
+                                                actual_key = dashboard_handler_instance.config.get("ASR", {}).get("GroqASR", {}).get("api_key", "")
+
+                                            logger.bind(tag=TAG).info(f"[AI] Nhận message: '{clean_text}' | Key: {'OK' if actual_key else 'TRỐNG'}")
+
+                                            if not actual_key:
+                                                await notifier.send_message(chat_id, "⚠️ Chưa có Groq API Key. Vui lòng cài key bằng /setkey gsk_xxx.")
+                                                continue
+
+                                            # Lấy lịch sử hội thoại cho chat_id này
+                                            history = conversation_history.get(str(chat_id), [])
+
+                                            # Thử phân tích intent điều khiển thiết bị
+                                            ai_result = await AIProcessor.analyze_intent_conversational(clean_text, actual_key, history=history)
+                                            logger.bind(tag=TAG).info(f"[AI] Kết quả: {ai_result}")
+
+                                            if ai_result:
+                                                # Có intent điều khiển → hỏi xác nhận
+                                                actions = ai_result["actions"]
+                                                reply_msg = ai_result["reply"]
+
+                                                # Cập nhật history với tin người dùng + bot reply
+                                                history.append({"role": "user", "content": clean_text})
+                                                history.append({"role": "assistant", "content": reply_msg})
+                                                conversation_history[str(chat_id)] = history[-10:]
+
+                                                DashboardUpdater.add_ai_log(
+                                                    query=clean_text,
+                                                    response=reply_msg,
+                                                    action=",".join(actions),
+                                                    status="suggested"
+                                                )
+                                                # Gửi xác nhận với danh sách actions (chuỗi phân cách bởi "+")
+                                                intent_key = "+".join(actions)
+                                                await notifier.send_ai_confirmation(chat_id, reply_msg, intent_key)
+                                            else:
+                                                # Không có intent → gọi AI trò chuyện tự nhiên
+                                                conv_reply = await AIProcessor.chat_conversational(clean_text, actual_key)
+                                                response_text = conv_reply or "Tôi đang lắng nghe bạn! 😊"
+
+                                                # Cập nhật history
+                                                history.append({"role": "user", "content": clean_text})
+                                                history.append({"role": "assistant", "content": response_text})
+                                                conversation_history[str(chat_id)] = history[-10:]
+
+                                                DashboardUpdater.add_system_log("Chat", "conversation", {"q": clean_text[:40]})
+
                                     if response_text:
-                                        await session.post(send_url, json={"chat_id": chat_id, "text": response_text, "parse_mode": "Markdown"})
+                                        await notifier.send_message(chat_id, response_text)
+
             except Exception as e:
-                logger.bind(tag=TAG).error(f"Telegram polling loop error: {e}")
-            
-            await asyncio.sleep(2)
+                import traceback
+                logger.bind(tag=TAG).error(f"Telegram polling loop error: {e}\n{traceback.format_exc()}")
+
+            await asyncio.sleep(1)
+

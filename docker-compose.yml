@@ -1,0 +1,16 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: smart-baby-care-server:latest
+    container_name: baby-care-server-v3
+    ports:
+      - "8000:8000"
+      - "8003:8003"
+    restart: unless-stopped
+    volumes:
+      # Mount data if needed for persistence
+      - ./server_python/main/xiaozhi-server/data:/opt/smart-baby-care/server/data
+    environment:
+      - PYTHONUNBUFFERED=1
