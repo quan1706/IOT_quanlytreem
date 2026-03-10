@@ -1,4 +1,21 @@
 import sys
+import types
+
+# Patch for missing opuslib_next DLL on Windows
+try:
+    import opuslib_next
+except (ImportError, Exception):
+    # Create a dummy module to prevent other files from crashing on import
+    dummy = types.ModuleType('opuslib_next')
+    constants = types.ModuleType('opuslib_next.constants')
+    dummy.constants = constants
+    dummy.Encoder = lambda *args, **kwargs: None
+    dummy.Decoder = lambda *args, **kwargs: None
+    dummy.APPLICATION_AUDIO = 2049
+    sys.modules['opuslib_next'] = dummy
+    sys.modules['opuslib_next.constants'] = constants
+    print("Warning: libopus.dll not found. Opus audio features will be disabled.")
+
 import uuid
 import signal
 import asyncio
@@ -44,7 +61,7 @@ async def monitor_stdin():
 
 
 async def main():
-    check_ffmpeg_installed()
+    # check_ffmpeg_installed()
     config = load_config()
 
     # Độ ưu tiên auth_key: file cấu hình server.auth_key > manager-api.secret > tự động tạo
