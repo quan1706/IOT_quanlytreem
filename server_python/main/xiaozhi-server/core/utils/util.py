@@ -8,7 +8,10 @@ import asyncio
 import requests
 import subprocess
 import numpy as np
-import opuslib_next
+try:
+    import opuslib_next
+except (ImportError, Exception):
+    opuslib_next = None
 from io import BytesIO
 from core.utils import p3
 from pydub import AudioSegment
