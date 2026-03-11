@@ -26,14 +26,32 @@
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 #include <driver/i2s.h>
+#include <ESP32Servo.h>
+
+// ============================================================
+//  CẤU HÌNH ÂM LƯỢNG (0 - 100%)
+// ============================================================
+int VOLUME_PERCENT = 50; // Bạn có thể thay đổi phần trăm âm lượng tại đây (0-100)
+
+// ============================================================
+//  CẤU HÌNH SERVO (Động cơ quay ru nôi)
+// ============================================================
+#define SERVO_PIN 23
+Servo myServo;
+
+// Biến trạng thái đưa nôi
+bool isRockingCradle = false;
+int servoPos = 0;
+int servoDirection = 1;
+unsigned long lastServoStepTime = 0;
 
 // ============================================================
 //  CẤU HÌNH WIFI & SERVER - SỬA THÔNG TIN NÀY CHO PHÙ HỢP
 // ============================================================
-const char* WIFI_SSID     = "Iphone 3";           // Tên WiFi nhà bạn
-const char* WIFI_PASSWORD = "11111112";             // Mật khẩu WiFi (SỬA LẠI CHO ĐÚNG)
+const char* WIFI_SSID     = "Phòng 402";           // Tên WiFi nhà bạn
+const char* WIFI_PASSWORD = "79797979";             // Mật khẩu WiFi (SỬA LẠI CHO ĐÚNG)
 
-const char* SERVER_IP     = "172.20.10.6";      // IP máy tính chạy Server
+const char* SERVER_IP     = "192.168.0.75";      // IP máy tính chạy Server
 const int   SERVER_PORT   = 8000;                   // Port WebSocket Server
 const char* SERVER_PATH   = "/xiaozhi/v1/";         // Đường dẫn WebSocket
 
@@ -338,6 +356,8 @@ void handleServerMessage(char* message) {
     const char* text = doc["text"];
     if (text) {
       Serial.printf("[STT] Recognized: %s\n", text);
+      // Kiểm tra lệnh điều khiển từ giọng nói người dùng
+      checkVoiceCommand(String(text));
     }
   }
   // Server trả lời văn bản (LLM response)
@@ -345,7 +365,138 @@ void handleServerMessage(char* message) {
     const char* text = doc["text"];
     if (text) {
       Serial.printf("[LLM] AI says: %s\n", text);
-      // TODO: Hiển thị lên TFT LCD
+      // Kiểm tra lệnh điều khiển từ phản hồi AI
+      checkVoiceCommand(String(text));
+    }
+  }
+}
+
+// ============================================================
+//  KIỂM TRA LỆNH GIỌNG NÓI (RU NÔI, ÂM LƯỢNG, v.v.)
+// ============================================================
+void checkVoiceCommand(String text) {
+  Serial.printf("[CMD] Checking command in: %s\n", text.c_str());
+  text.toLowerCase();
+  
+  // --- LỆNH TẮT NÔI / DỪNG NÔI ---
+  bool isStopRockCmd = false;
+  if (text.indexOf("tắt n") >= 0) isStopRockCmd = true;
+  if (text.indexOf("dừng n") >= 0) isStopRockCmd = true;
+  if (text.indexOf("dừng ru") >= 0) isStopRockCmd = true;
+  if (text.indexOf("ngừng") >= 0) isStopRockCmd = true;
+
+  if (isStopRockCmd) {
+    Serial.println("[SERVO] >>> MATCHED! Tắt nôi!");
+    stopCradle();
+    return;
+  }
+
+  // --- LỆNH RU NÔI / RU VÕNG → Quay Servo ---
+  bool isRockCmd = false;
+  if (text.indexOf("ru n") >= 0)    isRockCmd = true;
+  if (text.indexOf("ru v") >= 0)    isRockCmd = true;
+  if (text.indexOf("ru em") >= 0)   isRockCmd = true;
+  if (text.indexOf("runo") >= 0)    isRockCmd = true;
+  if (text.indexOf("rung") >= 0)    isRockCmd = true;
+  if (text.indexOf("noi ru") >= 0)  isRockCmd = true;
+  if (text.indexOf("ru be") >= 0)   isRockCmd = true;
+  if (text.indexOf("bat noi") >= 0) isRockCmd = true;
+  if (text.indexOf("bật n") >= 0) isRockCmd = true;
+  
+  if (isRockCmd) {
+    Serial.println("[SERVO] >>> MATCHED! Bat dau dua noi!");
+    startCradle();
+    return;
+  }
+  
+  // --- LỆNH GIẢM ÂM LƯỢNG ---
+  if (text.indexOf("giảm") >= 0 && text.indexOf("âm") >= 0) {
+    // Tìm số trong chuỗi
+    int newVol = extractNumber(text);
+    if (newVol >= 0 && newVol <= 100) {
+      VOLUME_PERCENT = newVol;
+      Serial.printf("[VOL] Đã giảm âm lượng xuống %d%%\n", VOLUME_PERCENT);
+    } else {
+      // Nếu không tìm thấy số cụ thể, giảm 20%
+      VOLUME_PERCENT = max(0, VOLUME_PERCENT - 20);
+      Serial.printf("[VOL] Đã giảm âm lượng xuống %d%%\n", VOLUME_PERCENT);
+    }
+    return;
+  }
+  
+  // --- LỆNH TĂNG ÂM LƯỢNG ---
+  if (text.indexOf("tăng") >= 0 && text.indexOf("âm") >= 0) {
+    int newVol = extractNumber(text);
+    if (newVol >= 0 && newVol <= 100) {
+      VOLUME_PERCENT = newVol;
+      Serial.printf("[VOL] Đã tăng âm lượng lên %d%%\n", VOLUME_PERCENT);
+    } else {
+      VOLUME_PERCENT = min(100, VOLUME_PERCENT + 20);
+      Serial.printf("[VOL] Đã tăng âm lượng lên %d%%\n", VOLUME_PERCENT);
+    }
+    return;
+  }
+}
+
+// ============================================================
+//  TRÍCH XUẤT SỐ TỪ CHUỖI (ví dụ: "giảm âm lượng 50" → 50)
+// ============================================================
+int extractNumber(String text) {
+  String numStr = "";
+  for (int i = 0; i < text.length(); i++) {
+    char c = text.charAt(i);
+    if (c >= '0' && c <= '9') {
+      numStr += c;
+    } else if (numStr.length() > 0) {
+      break; // Đã tìm thấy số, dừng lại
+    }
+  }
+  if (numStr.length() > 0) {
+    return numStr.toInt();
+  }
+  return -1; // Không tìm thấy số
+}
+
+// ============================================================
+//  HÀM ĐƯA NÔI SỬ DỤNG TRẠNG THÁI (NON-BLOCKING)
+// ============================================================
+void startCradle() {
+  if (!isRockingCradle) {
+    Serial.println("[SERVO] Bắt đầu đưa nôi...");
+    myServo.setPeriodHertz(50);
+    myServo.attach(SERVO_PIN, 500, 2400);
+    isRockingCradle = true;
+    servoPos = 0;
+    servoDirection = 1;
+    lastServoStepTime = millis();
+  }
+}
+
+void stopCradle() {
+  if (isRockingCradle) {
+    Serial.println("[SERVO] Dừng đưa nôi.");
+    isRockingCradle = false;
+    myServo.detach(); // Tắt xung PWM để servo không bị rè hoặc tốn điện
+  }
+}
+
+void updateCradle() {
+  if (isRockingCradle) {
+    // Mỗi 15ms nhích 1 bước
+    if (millis() - lastServoStepTime >= 15) {
+      lastServoStepTime = millis();
+      
+      servoPos += (2 * servoDirection);
+      myServo.write(servoPos);
+      
+      // Đảo chiều nếu chạm ngưỡng 0 hoặc 180
+      if (servoPos >= 180) {
+        servoPos = 180;
+        servoDirection = -1;
+      } else if (servoPos <= 0) {
+        servoPos = 0;
+        servoDirection = 1;
+      }
     }
   }
 }
@@ -355,6 +506,14 @@ void handleServerMessage(char* message) {
 // ============================================================
 void handleAudioResponse(uint8_t* data, size_t length) {
   if (length == 0) return;
+
+  // Điều chỉnh âm lượng theo phần trăm
+  int16_t* audioData = (int16_t*)data;
+  size_t numSamples = length / 2;
+  float volumeFactor = (float)VOLUME_PERCENT / 100.0;
+  for (size_t i = 0; i < numSamples; i++) {
+    audioData[i] = audioData[i] * volumeFactor;
+  }
 
   // Phát âm thanh qua loa
   size_t bytesWritten = 0;
@@ -624,6 +783,13 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
+  // Khởi tạo Servo (chỉ cấu hình timer, KHÔNG attach để tránh servo bị rung)
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+  Serial.println("[SERVO] Timer đã cấu hình. Servo sẽ attach khi cần.");
+
   // Khởi tạo cảm biến nhiệt độ (nếu có)
 #ifdef USE_DHT22
   dht.begin();
@@ -680,6 +846,9 @@ void loop() {
        lastCryDetectTime = millis();
     }
   }
+
+  // Cập nhật góc quay servo của nôi (non-blocking) liên tục
+  updateCradle();
 
   // Phát hiện tiếng khóc (chỉ khi không đang thu âm / phát âm)
   checkCryDetection();

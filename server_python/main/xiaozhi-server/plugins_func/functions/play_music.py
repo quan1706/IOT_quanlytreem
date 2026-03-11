@@ -22,13 +22,13 @@ play_music_function_desc = {
     "type": "function",
     "function": {
         "name": "play_music",
-        "description": "唱歌、听歌、播放音乐的方法。",
+        "description": "唱歌、听歌、播放音乐的方法。 Phương thức để phát nhạc, nghe nhạc (play music).",
         "parameters": {
             "type": "object",
             "properties": {
                 "song_name": {
                     "type": "string",
-                    "description": "歌曲名称，如果用户没有指定具体歌名则为'random', 明确指定的时返回音乐的名字 示例: ```用户:播放两只老虎\n参数：两只老虎``` ```用户:播放音乐 \n参数：random ```",
+                    "description": "歌曲名称/Tên bài hát, 如果用户没有指定具体歌名则为'random'/Nếu không chỉ định thì điền 'random', 明确指定的时返回音乐的名字 示例: ```用户:播放两只老虎\n参数：两只老虎``` ```用户:phát nhạc \n参数：random ```",
                 }
             },
             "required": ["song_name"],
@@ -78,7 +78,7 @@ def play_music(conn: "ConnectionHandler", song_name: str):
 
 def _extract_song_name(text):
     """从用户输入中提取歌名"""
-    for keyword in ["播放音乐"]:
+    for keyword in ["播放音乐", "phát bài", "phát bản nhạc", "mở bài", "bài hát", "nghe bài"]:
         if keyword in text:
             parts = text.split(keyword)
             if len(parts) > 1:
@@ -180,13 +180,11 @@ def _get_random_play_prompt(song_name):
     # 移除文件扩展名
     clean_name = os.path.splitext(song_name)[0]
     prompts = [
-        f"正在为您播放，《{clean_name}》",
-        f"请欣赏歌曲，《{clean_name}》",
-        f"即将为您播放，《{clean_name}》",
-        f"现在为您带来，《{clean_name}》",
-        f"让我们一起聆听，《{clean_name}》",
-        f"接下来请欣赏，《{clean_name}》",
-        f"此刻为您献上，《{clean_name}》",
+        f"Đang phát bài nhạc 《{clean_name}》 cho em bé nghe nhé",
+        f"Xin mời bé thưởng thức bài hát 《{clean_name}》",
+        f"Chuẩn bị phát bài 《{clean_name}》",
+        f"Chúng ta cùng nghe bài 《{clean_name}》 nhé",
+        f"Bây giờ sẽ là giai điệu của 《{clean_name}》 nha",
     ]
     # 直接使用random.choice，不设置seed
     return random.choice(prompts)
