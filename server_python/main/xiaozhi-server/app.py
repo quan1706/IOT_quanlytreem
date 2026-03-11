@@ -4,7 +4,7 @@ import types
 # Patch for missing opuslib_next DLL on Windows
 try:
     import opuslib_next
-except (ImportError, Exception):
+except (ImportError, Exception): 
     # Create a dummy module to prevent other files from crashing on import
     dummy = types.ModuleType('opuslib_next')
     constants = types.ModuleType('opuslib_next.constants')
