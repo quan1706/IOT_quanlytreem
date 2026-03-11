@@ -35,6 +35,14 @@ class BabyCareAction(Enum):
     def description(self) -> str:
         return self.value[2]
 
+    def get_label(self, msg_config: dict) -> str:
+        """Lấy label từ config nếu có, ngược lại dùng hardcoded."""
+        return msg_config.get("actions", {}).get(self.callback_data, {}).get("label", self.button_label)
+
+    def get_description(self, msg_config: dict) -> str:
+        """Lấy description từ config nếu có, ngược lại dùng hardcoded."""
+        return msg_config.get("actions", {}).get(self.callback_data, {}).get("desc", self.description)
+
     @classmethod
     def get_inline_keyboard(cls, cols: int = 2) -> dict:
         """
@@ -57,11 +65,14 @@ class BabyCareAction(Enum):
         return {"inline_keyboard": rows}
 
     @classmethod
-    def get_ai_descriptions(cls) -> str:
+    def get_ai_descriptions(cls, msg_config: dict = None) -> str:
         """
         Trả về danh sách mô tả cho AI sử dụng khi tư vấn hành động.
         """
-        lines = [f"- {a.callback_data}: {a.description}" for a in cls]
+        if msg_config:
+            lines = [f"- {a.callback_data.replace('confirm_', '')}: {a.get_description(msg_config)}" for a in cls]
+        else:
+            lines = [f"- {a.callback_data.replace('confirm_', '')}: {a.description}" for a in cls]
         return "\n".join(lines)
 
     @classmethod
