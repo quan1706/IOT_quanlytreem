@@ -268,6 +268,13 @@ class ConnectionHandler:
         except Exception as e:
             self.logger.bind(tag=TAG).error(f"保存记忆失败: {e}")
         finally:
+            # Nếu là thiết bị Baby Care, xóa khỏi ESP32Commander
+            if self.features and self.features.get("baby_care"):
+                try:
+                    from core.serverToClients import ESP32Commander
+                    ESP32Commander().unregister_connection(ws)
+                except Exception:
+                    pass
             # 立即关闭连接，不等待记忆保存完成
             try:
                 await self.close(ws)

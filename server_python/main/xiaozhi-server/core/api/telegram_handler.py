@@ -9,7 +9,7 @@ TAG = "telegram_handler"
 
 class TelegramHandler:
     BOT_TOKEN = "8765806795:AAEB83HSeGkpYYv0JsnnPz6IaiSCvlDOn_w"
-    CHAT_ID = "-5283283687"
+    CHAT_ID = "-1003755091801"
     last_token_alert_time = 0
 
     # ─────────────────────────────────────────────────────────────────────

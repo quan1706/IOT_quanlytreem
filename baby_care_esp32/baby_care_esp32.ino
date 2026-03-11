@@ -26,14 +26,15 @@
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 #include <driver/i2s.h>
+#include <ESP32Servo.h>
 
 // ============================================================
 //  CẤU HÌNH WIFI & SERVER - SỬA THÔNG TIN NÀY CHO PHÙ HỢP
 // ============================================================
-const char* WIFI_SSID     = "Iphone 3";           // Tên WiFi nhà bạn
-const char* WIFI_PASSWORD = "11111112";             // Mật khẩu WiFi (SỬA LẠI CHO ĐÚNG)
+const char* WIFI_SSID     = "Thành Đạt";           // Tên WiFi nhà bạn
+const char* WIFI_PASSWORD = "123456789";             // Mật khẩu WiFi (SỬA LẠI CHO ĐÚNG)
 
-const char* SERVER_IP     = "172.20.10.6";      // IP máy tính chạy Server
+const char* SERVER_IP     = "172.20.10.3";      // IP máy tính chạy Server
 const int   SERVER_PORT   = 8000;                   // Port WebSocket Server
 const char* SERVER_PATH   = "/xiaozhi/v1/";         // Đường dẫn WebSocket
 
@@ -66,6 +67,17 @@ const char* CLIENT_ID = "baby-care-client";
 
 // --- LED ---
 #define LED_PIN             2     // LED trên board ESP32
+
+// --- Servo ---
+#define SERVO_PIN           23    // Chân tín hiệu Servo
+Servo myServo;
+bool servoActive = false;
+int servoPos = 90;
+int servoDir = 1;
+unsigned long lastServoMove = 0;
+#define SERVO_INTERVAL_MS   33    // Tốc độ quay: 90 bước × 33ms ≈ 3 giây/chiều
+#define SERVO_MIN_ANGLE     45    // Góc quay tối thiểu
+#define SERVO_MAX_ANGLE     135   // Góc quay tối đa
 
 // --- DHT22 Nhiệt độ (Tùy chọn - nếu không dùng thì comment dòng #define USE_DHT22) ---
 // #define USE_DHT22
@@ -348,6 +360,22 @@ void handleServerMessage(char* message) {
       // TODO: Hiển thị lên TFT LCD
     }
   }
+  // Server gửi lệnh điều khiển (Servo, ...)
+  else if (strcmp(type, "command") == 0) {
+    const char* cmd = doc["cmd"];
+    if (cmd) {
+      Serial.printf("[COMMAND] Received: %s\n", cmd);
+      if (strcmp(cmd, "ru_vong") == 0) {
+        servoActive = true;
+        Serial.println("[SERVO] Swing started");
+      }
+      else if (strcmp(cmd, "dung") == 0) {
+        servoActive = false;
+        myServo.write(90); // Về vị trí giữa
+        Serial.println("[SERVO] Stop and centered");
+      }
+    }
+  }
 }
 
 // ============================================================
@@ -541,6 +569,24 @@ void checkTemperature() {
 }
 
 // ============================================================
+//  LOGIC QUAY SERVO (NON-BLOCKING)
+// ============================================================
+void updateServo() {
+  if (!servoActive) return;
+
+  if (millis() - lastServoMove >= SERVO_INTERVAL_MS) {
+    lastServoMove = millis();
+    
+    servoPos += servoDir;
+    if (servoPos >= SERVO_MAX_ANGLE || servoPos <= SERVO_MIN_ANGLE) {
+      servoDir = -servoDir; // Đổi chiều
+    }
+    
+    myServo.write(servoPos);
+  }
+}
+
+// ============================================================
 //  XỬ LÝ NÚT NHẤN (PUSH-TO-TALK)
 // ============================================================
 void handleButton() {
@@ -624,6 +670,13 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
+  // Cấu hình Servo (dùng timer 3, tránh xung đột với I2S)
+  ESP32PWM::allocateTimer(3);
+  myServo.setPeriodHertz(50);
+  myServo.attach(SERVO_PIN, 500, 2400);
+  myServo.write(90); // Về vị trí giữa
+  Serial.println("[SERVO] Servo initialized on GPIO 23");
+
   // Khởi tạo cảm biến nhiệt độ (nếu có)
 #ifdef USE_DHT22
   dht.begin();
@@ -683,6 +736,9 @@ void loop() {
 
   // Phát hiện tiếng khóc (chỉ khi không đang thu âm / phát âm)
   checkCryDetection();
+
+  // Cập nhật vị trí Servo
+  updateServo();
 
   // Đọc nhiệt độ phòng
   checkTemperature();

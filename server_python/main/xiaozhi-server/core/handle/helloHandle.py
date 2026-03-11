@@ -56,6 +56,12 @@ async def handleHelloMessage(conn: "ConnectionHandler", msg_json):
             conn.mcp_client = MCPClient()
             # 发送初始化
             asyncio.create_task(send_mcp_initialize_message(conn))
+        # Nếu thiết bị là Baby Care ESP32, đăng ký vào ESP32Commander để nhận lệnh điều khiển
+        if features.get("baby_care"):
+            from core.serverToClients import ESP32Commander
+            commander = ESP32Commander()
+            commander.register_connection(conn.websocket)
+            conn.logger.bind(tag=TAG).info("[BabyCare] ESP32 Baby Care đã đăng ký nhận lệnh điều khiển.")
 
     await conn.websocket.send(json.dumps(conn.welcome_msg))
 

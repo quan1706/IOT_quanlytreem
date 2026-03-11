@@ -17,7 +17,7 @@ class TelegramNotifier:
     """
 
     BOT_TOKEN = "8765806795:AAEB83HSeGkpYYv0JsnnPz6IaiSCvlDOn_w"
-    CHAT_ID = "-5283283687"
+    CHAT_ID = "-1003755091801"
 
     def __init__(self, bot_token: str = None, chat_id: str = None):
         self.bot_token = bot_token or self.BOT_TOKEN
