@@ -56,17 +56,16 @@ class BabyEventMessageHandler(TextMessageHandler):
                 data={"device": device_id, "rms": rms_level, "ts": timestamp}
             )
 
-            # ── Gửi Telegram text alert (không ảnh — ảnh đến sau từ ESP32-CAM) ──
-            from core.serverToClients import TelegramNotifier
+            # ── Gửi Telegram text alert ──────────────────────────────────
+            from core.telegram import TelegramClient
             from core.serverToClients.baby_actions import BabyCareAction
-            from core.api.telegram_handler import TelegramHandler
 
-            notifier = TelegramNotifier(
-                bot_token=TelegramHandler.BOT_TOKEN,
-                chat_id=TelegramHandler.CHAT_ID
+            tg_config = conn.config.get("telegram", {}) if hasattr(conn, "config") else {}
+            client = TelegramClient(
+                bot_token=tg_config.get("bot_token", ""),
+                default_chat_id=tg_config.get("chat_id", ""),
             )
 
-            # Tạo caption ngắn gọn như giao diện người dùng mô tả
             action_list = "\n".join(
                 f"  • {a.button_label} — {a.description}" for a in BabyCareAction
             )
@@ -80,7 +79,7 @@ class BabyEventMessageHandler(TextMessageHandler):
             )
             reply_markup = BabyCareAction.get_inline_keyboard(cols=2)
             asyncio.create_task(
-                notifier.send_message(TelegramHandler.CHAT_ID, alert_text, reply_markup=reply_markup)
+                client.send_message(text=alert_text, reply_markup=reply_markup)
             )
 
             # ── Dỗ bé bằng giọng TTS ────────────────────────────────────
@@ -104,4 +103,3 @@ class BabyEventMessageHandler(TextMessageHandler):
                 action="temperature",
                 data={"temp": temp, "humidity": humidity, "device": device_id}
             )
-

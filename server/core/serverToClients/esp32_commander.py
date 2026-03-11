@@ -13,14 +13,6 @@ from config.logger import setup_logging
 
 TAG = "ESP32Commander"
 
-# Ánh xạ lệnh → mô tả thân thiện tiếng Việt
-COMMAND_LABELS = {
-    "phat_nhac": "🎵 Phát nhạc ru bé",
-    "ru_vong":   "🔄 Đưa võng / nôi",
-    "dung":      "⏹ Dừng tất cả thiết bị",
-    "hinh_anh":  "📸 Chụp ảnh bé mới",
-}
-
 
 class ESP32Commander:
     """
@@ -37,6 +29,13 @@ class ESP32Commander:
             # Placeholder: danh sách WebSocket connections đến ESP32
             cls._instance.connections = []
         return cls._instance
+
+    @staticmethod
+    def _get_label(command: str) -> str:
+        """Lấy label từ BabyCareAction enum thay vì hardcode."""
+        from core.serverToClients.baby_actions import BabyCareAction
+        action = BabyCareAction.from_callback(f"confirm_{command}")
+        return action.button_label if action else f"Lệnh: {command}"
 
     def register_connection(self, ws_connection):
         """Đăng ký WebSocket connection mới từ ESP32."""
@@ -60,7 +59,7 @@ class ESP32Commander:
         import json
         from core.serverToClients.dashboard_updater import DashboardUpdater
 
-        label = COMMAND_LABELS.get(command, f"Lệnh: {command}")
+        label = self._get_label(command)
         esp32_payload = {"cmd": command}
 
         self.logger.bind(tag=TAG).info(

@@ -40,10 +40,8 @@ class SimpleHttpServer:
         Gửi ảnh cảnh báo lên Telegram (kèm BabyCareAction buttons), log dashboard & server.
         """
         import time
-        import asyncio
-        from core.serverToClients import TelegramNotifier, DashboardUpdater
+        from core.serverToClients import DashboardUpdater
         from core.serverToClients.baby_actions import BabyCareAction
-        from core.api.telegram_handler import TelegramHandler
 
         try:
             self.logger.bind(tag=TAG).info("--- NHẬN YÊU CẦU CẢNH BÁO BÉ KHÓC TỪ HTTP ---")
@@ -83,11 +81,10 @@ class SimpleHttpServer:
             )
 
             # ── Gửi ảnh + BabyCareAction buttons lên Telegram ───────────
-            notifier = TelegramNotifier(
-                bot_token=TelegramHandler.BOT_TOKEN,
-                chat_id=TelegramHandler.CHAT_ID
-            )
-            asyncio.create_task(notifier.send_photo_alert(image_bytes, caption))
+            if hasattr(self, '_telegram_bot') and self._telegram_bot:
+                asyncio.create_task(
+                    self._telegram_bot.alerts.send_photo_alert(image_bytes, caption)
+                )
 
             return web.json_response({"success": True, "message": "Alert received and processing"})
 
@@ -151,9 +148,10 @@ class SimpleHttpServer:
                 site = web.TCPSite(runner, host, port)
                 await site.start()
                 
-                # Bắt đầu vòng lặp Telegram Bot
-                from core.api.telegram_handler import TelegramHandler
-                asyncio.create_task(TelegramHandler.start_telegram_bot(self.dashboard_handler))
+                # Khởi động Telegram Bot (từ package mới)
+                from core.telegram import TelegramBot
+                self._telegram_bot = TelegramBot(self.config, self.dashboard_handler)
+                asyncio.create_task(self._telegram_bot.start())
 
                 # Duy trì dịch vụ hoạt động
                 while True:

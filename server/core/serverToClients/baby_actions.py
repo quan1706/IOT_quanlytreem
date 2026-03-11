@@ -3,7 +3,7 @@ serverToClients/baby_actions.py
 
 Enum các hành động có thể thực hiện khi bé khóc.
 Admin có thể thêm/sửa/xóa hành động tại đây.
-AI (AIProcessor) và TelegramNotifier đều dùng chung Enum này để đưa ra gợi ý nhất quán.
+AI (AIProcessor) và TelegramAlerts đều dùng chung Enum này để đưa ra gợi ý nhất quán.
 """
 from enum import Enum
 

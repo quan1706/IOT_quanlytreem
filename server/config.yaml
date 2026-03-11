@@ -22,6 +22,13 @@ server:
   mqtt_signature_key: null
   udp_gateway: null
 
+# ===========================================================================
+# Telegram Bot Configuration
+# ===========================================================================
+telegram:
+  bot_token: "8765806795:AAEB83HSeGkpYYv0JsnnPz6IaiSCvlDOn_w"
+  chat_id: "-5283283687"
+
 log:
   log_format: "<green>{time:YYMMDD HH:mm:ss}</green>[{version}_{selected_module}][<light-blue>{extra[tag]}</light-blue>]-<level>{level}</level>-<light-green>{message}</light-green>"
   log_format_file: "{time:YYYY-MM-DD HH:mm:ss} - {version}_{selected_module} - {name} - {level} - {extra[tag]} - {message}"

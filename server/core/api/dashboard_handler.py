@@ -347,8 +347,19 @@ class DashboardHandler:
         if current_time - DashboardHandler.last_token_alert_time < 300:
             return
         DashboardHandler.last_token_alert_time = current_time
-        from core.api.telegram_handler import TelegramHandler
-        asyncio.create_task(TelegramHandler.send_telegram_token_alert())
+        from core.telegram import TelegramClient, TelegramAlerts
+        from core.utils.util import get_local_ip
+        # Dùng config mặc định từ config.yaml
+        import yaml
+        try:
+            with open("config.yaml", "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f)
+            tg = cfg.get("telegram", {})
+            client = TelegramClient(tg.get("bot_token", ""), tg.get("chat_id", ""))
+            alerts = TelegramAlerts(client)
+            asyncio.create_task(alerts.send_token_alert(get_local_ip()))
+        except Exception:
+            pass
 
     @staticmethod
     def add_cry_event(message):
@@ -357,7 +368,14 @@ class DashboardHandler:
         DashboardUpdater.add_cry_event(message)
 
         time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        from core.api.telegram_handler import TelegramHandler
-        asyncio.create_task(
-            TelegramHandler.send_telegram_alert(message, time_str, DASHBOARD_STATE["mode"])
-        )
+        from core.telegram import TelegramClient, TelegramAlerts
+        import yaml
+        try:
+            with open("config.yaml", "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f)
+            tg = cfg.get("telegram", {})
+            client = TelegramClient(tg.get("bot_token", ""), tg.get("chat_id", ""))
+            alerts = TelegramAlerts(client)
+            asyncio.create_task(alerts.send_cry_alert(message, time_str, DASHBOARD_STATE["mode"]))
+        except Exception:
+            pass
