@@ -1,20 +1,14 @@
+# =============================================
+# IOT_quanlytreem - Smart Baby Care
+# =============================================
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
-# AI Models (quá lớn cho GitHub)
-*.task
-*.dat
-*.pth
-*.pt
-
-# Logs & Temp
-*.log
-tmp/
-server_python/main/xiaozhi-server/tmp/
-
-# Môi trường
+# Virtual Environments
 .env
 .venv
 env/
@@ -23,8 +17,63 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDEs
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# AI Models (too large for GitHub)
+*.task
+*.dat
+*.pth
+*.pt
+server/models/SenseVoiceSmall/model.pt
+server/models/sherpa-onnx*
+server/asr-models/
+
+# Logs & Temp
+*.log
+tmp/
+server/tmp/
+
+# Data
+server/data/
+uploadfile/
+
+# Music
+music/
+
+# IDE & Editor
 .vscode/
 .idea/
+.cursor/
+.claude/
 *.swp
 *.swo
+*.iml
+.history
+.DS_Store
+AGENTS.md
+
+# Config secrets (override files)
+.config.yaml
+.secrets.yaml
+.private_config.yaml
+.env.development
+
+# Audio ref
+server/audio_ref/
+
+# JSON (ignore by default, whitelist specific ones)
+*.json
+!package.json
+!**/package.json
+!server/**/*.json
+
+# MySQL data
+server/mysql/
+
+# Misc
+*.pid
+my_wakeup_words.mp3

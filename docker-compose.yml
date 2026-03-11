@@ -11,6 +11,6 @@ services:
     restart: unless-stopped
     volumes:
       # Mount data if needed for persistence
-      - ./server_python/main/xiaozhi-server/data:/opt/smart-baby-care/server/data
+      - ./server/data:/opt/smart-baby-care/server/data
     environment:
       - PYTHONUNBUFFERED=1

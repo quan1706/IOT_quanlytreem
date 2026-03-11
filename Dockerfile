@@ -18,7 +18,7 @@ ENV LANG=en_US.UTF-8 \
 WORKDIR /opt/smart-baby-care/server
 
 # Copy mã nguồn Python vào Container (chỉ lấy phần server_python để giảm dung lượng)
-COPY ./server_python/main/xiaozhi-server /opt/smart-baby-care/server
+COPY ./server /opt/smart-baby-care/server
 
 # Cài đặt các thư viện Python cho Server
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
