@@ -19,6 +19,11 @@ class TelegramAlerts:
     def __init__(self, client: TelegramClient):
         self.client = client
         self.logger = setup_logging()
+        self.msg_config = {}
+
+    def set_msg_config(self, config: dict):
+        """Được gọi bởi router để chia sẻ cấu hình tin nhắn."""
+        self.msg_config = config
 
     # ------------------------------------------------------------------
     # Baby cry (text-only)
@@ -27,15 +32,15 @@ class TelegramAlerts:
         self, message: str, time_str: str, current_mode: str
     ) -> bool:
         """Gửi cảnh báo bé khóc (không có ảnh)."""
-        text = (
-            "🚨 *CẢNH BÁO SMART BABY CARE* 🚨\n\n"
-            f"📍 Phát hiện: *Bé đang khóc!* ({message})\n"
-            f"⏰ Lịch sử ghi nhận lúc: *{time_str}*\n\n"
-        )
+        cry_cfg = self.msg_config.get("alerts", {}).get("cry", {})
+        tmpl = cry_cfg.get("template", "🚨 CRY DETECTED: {message} at {time_str}")
+        
+        text = tmpl.format(message=message, time_str=time_str)
+        
         if current_mode == "auto":
-            text += "🤖 _Hệ thống đang ở CHẾ ĐỘ TỰ ĐỘNG, đã tự mở nhạc dỗ dành bé._"
+            text += cry_cfg.get("mode_auto", "🤖 AUTO MODE")
         else:
-            text += "👨‍👩‍👧 _Hệ thống đang ở CHẾ ĐỘ GIÁM SÁT, hãy vào kiểm tra bé ngay!_"
+            text += cry_cfg.get("mode_manual", "👨‍👩‍👧 MONITOR MODE")
 
         return await self.client.send_message(text=text)
 
@@ -56,17 +61,13 @@ class TelegramAlerts:
     # ------------------------------------------------------------------
     async def send_token_alert(self, local_ip: str) -> bool:
         """Gửi cảnh báo hết token Groq."""
-        text = (
-            "⚠️ *CẢNH BÁO SMART BABY CARE* ⚠️\n\n"
-            "❌ *LỖI HẾT TOKEN API GROQ (RATE LIMIT)*\n"
-            "Trợ lý AI của bạn hiện không thể suy nghĩ hay trả lời vì đã dùng hết "
-            "hạn mức miễn phí trong ngày.\n\n"
-            "Vui lòng nhấn vào nút bên dưới để truy cập *Bảng điều khiển (Dashboard)* "
-            "và Cập nhật API Key mới cho hệ thống!"
-        )
+        token_cfg = self.msg_config.get("alerts", {}).get("token_limit", {})
+        text = token_cfg.get("text", "⚠️ TOKEN LIMIT")
+        btn_label = token_cfg.get("button", "⚙️ Dashboard")
+        
         reply_markup = {
             "inline_keyboard": [
-                [{"text": "Mở Dashboard Cài Đặt ⚙️", "url": f"http://{local_ip}:8003/"}]
+                [{"text": btn_label, "url": f"http://{local_ip}:8003/"}]
             ]
         }
         return await self.client.send_message(text=text, reply_markup=reply_markup)
@@ -76,15 +77,7 @@ class TelegramAlerts:
     # ------------------------------------------------------------------
     async def send_startup_message(self) -> bool:
         """Gửi thông báo khi server khởi động xong."""
-        text = (
-            "✅ *Hệ Thống Smart Baby Care Đã Khởi Động!*\n"
-            "Bạn có thể điều khiển cấu hình nhanh qua Bot này.\n\n"
-            "Hướng dẫn lệnh:\n"
-            "`/status` - Xem bảng trạng thái\n"
-            "`/mode auto` - Bật chế độ Tự động dỗ bé\n"
-            "`/mode manual` - Bật chế độ Chỉ Giám Sát\n"
-            "`/setkey gsk_xxxx` - Thay đổi khóa Groq AI qua tin nhắn"
-        )
+        text = self.msg_config.get("alerts", {}).get("startup", {}).get("text", "✅ Bot Started")
         return await self.client.send_message(text=text)
 
     # ------------------------------------------------------------------
@@ -94,13 +87,19 @@ class TelegramAlerts:
         self, chat_id, reply_msg: str, intent: str
     ) -> bool:
         """Gửi tin nhắn xác nhận từ AI với 2 nút: Thực thi và Hủy bỏ."""
+        conf_cfg = self.msg_config.get("alerts", {}).get("ai_confirmation", {})
+        
+        btn_ok = conf_cfg.get("btn_confirm", "🚀 Confirm")
+        btn_no = conf_cfg.get("btn_cancel", "❌ Cancel")
+        tmpl = conf_cfg.get("text", "🤖 Suggestion: {reply_msg}")
+
         reply_markup = {
             "inline_keyboard": [
                 [
-                    {"text": "🚀 Thực thi", "callback_data": f"ai_confirm_{intent}"},
-                    {"text": "❌ Hủy bỏ", "callback_data": f"ai_cancel_{intent}"},
+                    {"text": btn_ok, "callback_data": f"ai_confirm_{intent}"},
+                    {"text": btn_no, "callback_data": f"ai_cancel_{intent}"},
                 ]
             ]
         }
-        text = f"🤖 *AI gợi ý:* {reply_msg}\n\n_Bạn có muốn thực hiện hành động này không?_"
+        text = tmpl.format(reply_msg=reply_msg)
         return await self.client.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)

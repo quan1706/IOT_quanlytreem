@@ -109,6 +109,39 @@ class TelegramClient:
             self.logger.bind(tag=TAG).error(f"Lỗi sendPhoto: {e}")
             return False
 
+    async def send_photo_url(
+        self,
+        chat_id=None,
+        photo_url: str = "",
+        caption: str = "",
+        reply_markup: dict = None,
+    ) -> bool:
+        """Gửi ảnh qua URL kèm caption và (tuỳ chọn) inline keyboard."""
+        chat_id = chat_id or self.default_chat_id
+        url = f"{self.base_url}/sendPhoto"
+        
+        payload = {
+            "chat_id": chat_id,
+            "photo": photo_url,
+            "caption": caption,
+            "parse_mode": "Markdown",
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+
+        try:
+            session = await self._get_session()
+            async with session.post(url, json=payload) as resp:
+                result = await resp.json()
+                if result.get("ok"):
+                    self.logger.bind(tag=TAG).info("Gửi ảnh Telegram qua URL thành công")
+                    return True
+                self.logger.bind(tag=TAG).error(f"sendPhotoUrl thất bại: {result}")
+                return False
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi sendPhotoUrl: {e}")
+            return False
+
     async def answer_callback_query(
         self, callback_query_id: str, text: str = "", show_alert: bool = False
     ) -> bool:

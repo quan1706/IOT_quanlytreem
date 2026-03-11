@@ -602,3 +602,31 @@ def validate_mcp_endpoint(mcp_endpoint: str) -> bool:
 
 def get_system_error_response(config: dict) -> str:
     return config.get("system_error_response", "Xin lỗi bạn, hiện tại hệ thống đang bận. Chúng ta cùng thử lại sau nhé.")
+
+def escape_markdown(text: str) -> str:
+    """Thoát các ký hiệu Markdown (V1) cơ bản để tránh lỗi parse."""
+    if not text:
+        return ""
+    # Các ký tự đặc biệt trong Markdown V1: * _ ` [
+    # Lưu ý: Không thoát toàn bộ để giữ lại những gì AI có thể cố ý format, 
+    # nhưng thoát dấu _ và * lẻ loi là an toàn nhất.
+    chars = ["_", "*", "`", "["]
+    for char in chars:
+        text = text.replace(char, "\\" + char)
+    return text
+
+def load_telegram_config() -> dict:
+    """Tải cấu hình tin nhắn từ telegram_config.yaml."""
+    import yaml
+    import os
+    from config.config_loader import get_project_dir
+    
+    config_path = os.path.join(get_project_dir(), "config", "telegram_config.yaml")
+    if not os.path.exists(config_path):
+        return {}
+        
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    except Exception:
+        return {}

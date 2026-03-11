@@ -1,0 +1,145 @@
+# server/config/telegram_config.yaml
+# Chứa tất cả các chuỗi ký tự hiển thị trên Telegram để dễ dàng quản lý và bản địa hóa.
+
+commands:
+  welcome:
+    text: |
+      🍼 *Chào mừng bạn đến với Smart Baby Care!* 🍼
+
+      Tôi là *Tiểu Bảo*, trợ lý AI thông minh giúp bạn theo dõi và chăm sóc bé yêu.
+
+      🌟 *Tôi có thể giúp gì:* 
+      - Tự động nhận diện khi bé khóc và báo về điện thoại.
+      - An ủi bé bằng nhạc ru hoặc chế độ ru võng tự động.
+      - Phân tích dữ liệu và vẽ biểu đồ theo dõi.
+
+      Gõ `/help` để xem danh sách các lệnh cụ thể nhé!
+
+  help:
+    text: |
+      📚 *Hướng dẫn sử dụng hệ thống Smart Baby Care*
+
+      ✨ *Các lệnh chính:*
+      • `/status` : Xem trạng thái thiết bị & chế độ hoạt động.
+      • `/baby_chart` : Xem biểu đồ lịch sử bé khóc trong 24h.
+      • `/mode auto/manual` : Đổi chế độ giám sát.
+      • `/help` : Xem hướng dẫn này.
+
+      🤖 *Trò chuyện với AI (Tôi):*
+      Bạn có thể nhắn tin trực tiếp kiểu: 
+      _- 'Tại sao bé khóc?'_
+      _- 'Bé khóc rồi, phát nhạc cho bé đi'_
+      _- 'Cho xem biểu đồ ngày hôm nay'_
+
+      💡 *Lưu ý:* Trong nhóm chat, hãy nhắc tên {mention_text} để gọi tôi nhé!
+
+  status:
+    text: |
+      👶 *TRẠNG THÁI CỦA BÉ*
+      • Tình trạng: *{baby_state}*
+      • Tư thế: *{baby_posture}*
+
+      ⚙️ *TRẠNG THÁI HỆ THỐNG*
+      • Chế độ: *{mode}*
+      • Pin: *{battery}%* 🔋
+      • ESP32: *{esp_status}* 
+      • Nhiệt độ phòng: *{temp}°C* 🌡️
+      
+      
+      
+
+  mode_changed:
+    text: "🔄 Đã đổi sang *{mode_label}*."
+  
+  mode_error:
+    text: "❌ Lệnh không đúng. Dùng `/mode auto` hoặc `/mode manual`."
+
+  setkey_success:
+    text: "✅ Đã lưu API Key mới thành công! Hãy restart Server để nhận khoá mới."
+  
+  setkey_fail:
+    text: "❌ Có lỗi xảy ra khi lưu API Key."
+  
+  setkey_invalid:
+    text: "❌ API Key không hợp lệ. Hãy bắt đầu bằng `gsk_`!"
+
+  baby_chart_1:
+    caption: "📊 *Thống kê tiếng khóc của bé trong 24h qua*"
+    desc: "Xem biểu đồ tiếng khóc trong 24 giờ qua (1 ngày) 📊"
+  baby_chart_3:
+    caption: "📊 *Thống kê tiếng khóc của bé trong 3 ngày qua*"
+    desc: "Xem biểu đồ tiếng khóc trong 3 ngày vừa qua 📊"
+  baby_chart_7:
+    caption: "📊 *Thống kê tiếng khóc của bé trong 1 tuần qua*"
+    desc: "Xem biểu đồ tiếng khóc trong 1 tuần qua (7 ngày) 📊"
+  
+  cry_history_query:
+    desc: "Trả lời các câu hỏi về lịch sử bé khóc (vd: 'đêm qua bé khóc mấy lần?') 👶"
+
+  ai_no_key:
+    text: "⚠️ Chưa có Groq API Key. Vui lòng cài key bằng /setkey gsk_xxx."
+
+  ai_default_reply:
+    text: "Tôi đang lắng nghe bạn! 😊"
+  
+  ai_summary_prefix:
+    text: "\n\n🤖 *Đánh giá từ Tiểu Bảo:*\n"
+
+alerts:
+  cry:
+    template: |
+      🚨 *CẢNH BÁO SMART BABY CARE* 🚨
+
+      📍 Phát hiện: *Bé đang khóc!* ({message})
+      ⏰ Lịch sử ghi nhận lúc: *{time_str}*
+
+    mode_auto: "🤖 _Hệ thống đang ở CHẾ ĐỘ TỰ ĐỘNG, đã tự mở nhạc dỗ dành bé._"
+    mode_manual: "👨‍👩‍👧 _Hệ thống đang ở CHẾ ĐỘ GIÁM SÁT, hãy vào kiểm tra bé ngay!_"
+
+  token_limit:
+    text: |
+      ⚠️ *CẢNH BÁO SMART BABY CARE* ⚠️
+
+      ❌ *LỖI HẾT TOKEN API GROQ (RATE LIMIT)*
+      Trợ lý AI của bạn hiện không thể suy nghĩ hay trả lời vì đã dùng hết hạn mức miễn phí trong ngày.
+
+      Vui lòng nhấn vào nút bên dưới để truy cập *Bảng điều khiển (Dashboard)* và Cập nhật API Key mới cho hệ thống!
+    button: "Mở Dashboard Cài Đặt ⚙️"
+
+  startup:
+    text: |
+      ✅ *Hệ Thống Smart Baby Care Đã Khởi Động!*
+      Bạn có thể điều khiển cấu hình nhanh qua Bot này.
+
+      Hướng dẫn lệnh:
+      `/status` - Xem bảng trạng thái
+      `/mode auto` - Bật chế độ Tự động dỗ bé
+      `/mode manual` - Bật chế độ Chỉ Giám Sát
+      `/setkey gsk_xxxx` - Thay đổi khóa Groq AI qua tin nhắn
+
+  ai_confirmation:
+    text: "🤖 *AI gợi ý:* {reply_msg}\n\n_Bạn có muốn thực hiện hành động này không?_"
+    btn_confirm: "🚀 Thực thi"
+    btn_cancel: "❌ Hủy bỏ"
+
+callback:
+  processing: "⏳ Đang xử lý..."
+  confirmed: |
+    ✅ *Đã xác nhận lệnh: {label}*
+    _(Lệnh đã được ghi vào Dashboard.)_
+  ai_executing: "🚀 Thực hiện..."
+  ai_cancelled: "❌ Đã từ chối"
+
+actions:
+  confirm_phat_nhac:
+    label: "🎵 Phát nhạc"
+    desc: "Phát nhạc ru ngủ nhẹ nhàng dỗ bé"
+  confirm_ru_vong:
+    label: "🔄 Ru võng"
+    desc: "Kích hoạt võng rung nhẹ để bé ngủ"
+  confirm_hinh_anh:
+    label: "📸 Hình ảnh"
+    desc: "Chụp ảnh mới từ camera để xem tình trạng bé"
+  confirm_dung:
+    label: "⏹ Dừng"
+    desc: "Dừng tất cả thiết bị đang hoạt động"
