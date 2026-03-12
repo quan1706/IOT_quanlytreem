@@ -168,7 +168,8 @@ class TelegramRouter:
                 mode=state['mode'].upper(),
                 battery="85",
                 esp_status="Đang kết nối ✅",
-                temp="26.5",
+                temp=state.get('temp', '--'),
+                humidity=state.get('humidity', '--'),
                 baby_state="Bé đang ngủ ngon 😴",
                 baby_posture="Nằm ngửa ✅",
                 ai_key=self.dashboard_handler.current_key

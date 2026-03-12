@@ -20,6 +20,8 @@ DASHBOARD_STATE = {
     "action_logs": [],       # Danh sách hành động từ Telegram / ESP32
     "ai_logs": [],           # Danh sách log AI đỗ dành (query, response, action, status)
     "system_logs": [],       # Danh sách log hệ thống tổng hợp: time - name - action - json
+    "temp": 0.0,             # Nhiệt độ hiện tại
+    "humidity": 0.0,         # Độ ẩm hiện tại
 }
 
 MAX_HISTORY = 50   # Giới hạn số bản ghi lưu trong bộ nhớ
@@ -158,6 +160,13 @@ class DashboardUpdater:
     # ------------------------------------------------------------------
     # Mode
     # ------------------------------------------------------------------
+    @staticmethod
+    def update_sensor_data(temp: float, humidity: float):
+        """Cập nhật dữ liệu từ cảm biến lên dashboard state."""
+        DASHBOARD_STATE["temp"] = temp
+        DASHBOARD_STATE["humidity"] = humidity
+        DashboardUpdater.add_system_log("Sensor", "update", {"t": temp, "h": humidity})
+
     @staticmethod
     def set_mode(mode: str):
         DASHBOARD_STATE["mode"] = mode

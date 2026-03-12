@@ -20,6 +20,8 @@ class BabyCareAction(Enum):
     """
     PLAY_MUSIC  = ("confirm_phat_nhac",  "🎵 Phát nhạc",  "Phát nhạc ru ngủ nhẹ nhàng dỗ bé")
     SWING       = ("confirm_ru_vong",    "🔄 Ru võng",    "Kích hoạt võng rung nhẹ để bé ngủ")
+    FAN_ON      = ("confirm_bat_quat",   "🌬️ Bật quạt",    "Bật quạt làm mát phòng cho bé")
+    FAN_OFF     = ("confirm_tat_quat",   "🛑 Tắt quạt",    "Tắt quạt khi phòng đã mát")
     SNAPSHOT    = ("confirm_hinh_anh",   "📸 Hình ảnh",   "Chụp ảnh mới từ camera để xem tình trạng bé")
     STOP_ALL    = ("confirm_dung",       "⏹ Dừng",        "Dừng tất cả thiết bị đang hoạt động")
 
