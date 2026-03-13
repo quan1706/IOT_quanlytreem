@@ -57,6 +57,9 @@ async def handleHelloMessage(conn: "ConnectionHandler", msg_json):
             # 发送初始化
             asyncio.create_task(send_mcp_initialize_message(conn))
 
+    from core.serverToClients.esp32_commander import ESP32Commander
+    ESP32Commander().register_connection(conn.websocket)
+
     await conn.websocket.send(json.dumps(conn.welcome_msg))
 
 

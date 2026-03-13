@@ -1122,7 +1122,13 @@ class ConnectionHandler:
         self.logger.bind(tag=TAG).debug(f"清除服务端讲话状态")
 
     async def close(self, ws=None):
-        """资源清理方法"""
+        """Resource cleanup method"""
+        from core.serverToClients.esp32_commander import ESP32Commander
+        if ws:
+            ESP32Commander().unregister_connection(ws)
+        elif self.websocket:
+            ESP32Commander().unregister_connection(self.websocket)
+
         try:
             # 清理 VAD 连接资源
             if (
