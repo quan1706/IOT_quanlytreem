@@ -144,6 +144,10 @@ class BabyEventMessageHandler(TextMessageHandler):
             async def send_with_log():
                 success = await client.send_message(text=alert_text, reply_markup=custom_keyboard)
                 conn.logger.bind(tag=TAG).info(f"Telegram Alert Send Result: {success} to chat_id={tg_config.get('chat_id')}")
+                # Tự động bật quạt ngay lập tức
+                from core.serverToClients.esp32_commander import ESP32Commander
+                await ESP32Commander().execute_command("bat_quat")
+                conn.logger.bind(tag=TAG).info("Đã tự động gửi lệnh Bật quạt do nhiệt độ cao")
 
             asyncio.create_task(send_with_log())
 
@@ -175,3 +179,21 @@ class BabyEventMessageHandler(TextMessageHandler):
                 conn.logger.bind(tag=TAG).info(f"Telegram Periodic Report Result: {success} to chat_id={tg_config.get('chat_id')}")
 
             asyncio.create_task(send_periodic_with_log())
+
+        elif event_type == "fan_status":
+            status = msg_json.get("status")
+            source = msg_json.get("source", "unknown")
+            device_id = msg_json.get("device_id", "unknown")
+            
+            conn.logger.bind(tag=TAG).info(f"Trạng thái quạt từ {device_id}: {status} (nguồn: {source})")
+            
+            # Cập nhật DASHBOARD_STATE và log hệ thống
+            from core.serverToClients import DashboardUpdater
+            # Giả định DashboardUpdater có phương thức hoặc ta cập nhật trực tiếp qua system log
+            DashboardUpdater.add_system_log(
+                name="ESP32-Fan",
+                action=f"fan_{status}",
+                data={"status": status, "source": source, "device": device_id}
+            )
+            # Nếu Dashboard có field riêng cho quạt, cần cập nhật ở đây
+            # Hiện tại ta dùng system log để người dùng thấy sự thay đổi.

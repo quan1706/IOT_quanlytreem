@@ -85,7 +85,7 @@ const char* CLIENT_ID = "baby-care-client";
 // --- LED ---
 #define LED_PIN             2     // LED trên board ESP32
 
-// --- DHT11 Nhiệt độ ---
+// --- Cảm biến DHT11 Nhiệt độ ---
 #define USE_DHT11
 #ifdef USE_DHT11
   #include <DHT.h>
@@ -93,6 +93,13 @@ const char* CLIENT_ID = "baby-care-client";
   #define DHT_TYPE          DHT11
   DHT dht(DHT_PIN, DHT_TYPE);
 #endif
+
+// --- Điều khiển Quạt (Relay + Nút nhấn vật lý) ---
+#define FAN_PIN             5     // Relay điều khiển quạt nối vào chân D5
+#define BTN_FAN             18    // Nút nhấn vật lý cho quạt nối vào chân D18
+bool isFanOn = false;             // Trạng thái quạt
+bool fanBtnPressed = false;       // Trạng thái nút nhấn quạt
+unsigned long fanBtnLastDebounce = 0;
 
 // --- Màn hình OLED (I2C) ---
 #define USE_OLED
@@ -398,7 +405,13 @@ void handleServerMessage(char* message) {
       if (strcmp(cmd, "ru_vong") == 0 || strcmp(cmd, "phat_nhac") == 0) {
         startCradle();
       }
-      else if (strcmp(cmd, "dung") == 0 || strcmp(cmd, "tat_quat") == 0) {
+      else if (strcmp(cmd, "bat_quat") == 0) {
+        setFan(true, "server");
+      }
+      else if (strcmp(cmd, "tat_quat") == 0) {
+        setFan(false, "server");
+      }
+      else if (strcmp(cmd, "dung") == 0) {
         stopCradle();
       }
     }
@@ -474,14 +487,14 @@ void checkVoiceCommand(String text) {
   // --- LỆNH BẬT QUẠT ---
   if (text.indexOf("bật quạt") >= 0 || text.indexOf("bat quat") >= 0 || text.indexOf("bat_quat") >= 0) {
     Serial.println("[CMD] >>> MATCHED! Bật quạt!");
-    // Ở đây bạn có thể thêm code kích hoạt Relay quạt nếu có lắp
+    setFan(true, "voice");
     return;
   }
 
   // --- LỆNH TẮT QUẠT ---
   if (text.indexOf("tắt quạt") >= 0 || text.indexOf("tat quat") >= 0 || text.indexOf("tat_quat") >= 0) {
     Serial.println("[CMD] >>> MATCHED! Tắt quạt!");
-    // Ở đây bạn có thể thêm code ngắt Relay quạt nếu có lắp
+    setFan(false, "voice");
     return;
   }
 }
@@ -553,6 +566,33 @@ void updateCradle() {
         servoPos = 45;
         servoDirection = 1;
       }
+    }
+  }
+}
+
+// ============================================================
+//  ĐIỀU KHIỂN QUẠT
+// ============================================================
+void setFan(bool on, const char* source) {
+  if (isFanOn != on) {
+    isFanOn = on;
+    digitalWrite(FAN_PIN, isFanOn ? HIGH : LOW); // Relay kích mức HIGH để Bật
+    Serial.printf("[FAN] >>> %s từ %s\n", isFanOn ? "BẬT" : "TẮT", source);
+    updateOLED();
+    
+    // Gửi trạng thái lên server để đồng bộ
+    if (wsConnected) {
+      StaticJsonDocument<256> doc;
+      doc["type"] = "baby_event";
+      doc["event"] = "fan_status";
+      doc["status"] = isFanOn ? "on" : "off";
+      doc["source"] = source;
+      doc["device_id"] = DEVICE_ID;
+      
+      String jsonStr;
+      serializeJson(doc, jsonStr);
+      webSocket.sendTXT(jsonStr);
+      Serial.println("[FAN] Trạng thái đã gửi lên server");
     }
   }
 }
@@ -835,6 +875,14 @@ void updateOLED() {
     display.println("Noi: Dung");
   }
 
+  // Trạng thái quạt
+  display.setCursor(64, 56);
+  if (isFanOn) {
+    display.println("Quat: ON");
+  } else {
+    display.println("Quat: OFF");
+  }
+
   display.display();
 #endif
 }
@@ -856,6 +904,20 @@ void handleButton() {
       } else if (!btnPressed && currentState == STATE_LISTENING) {
         // Dừng thu âm, gửi lên server
         stopListening();
+      }
+    }
+  }
+
+  // Xử lý nút nhấn quạt (D18)
+  bool currentFanBtnState = (digitalRead(BTN_FAN) == LOW); // GND active LOW
+  if (currentFanBtnState != fanBtnPressed) {
+    if (millis() - fanBtnLastDebounce > BTN_DEBOUNCE_MS) {
+      fanBtnLastDebounce = millis();
+      fanBtnPressed = currentFanBtnState;
+      
+      if (fanBtnPressed) {
+        // Đảo trạng thái quạt khi nhấn nút
+        setFan(!isFanOn, "physical_button");
       }
     }
   }
@@ -922,6 +984,10 @@ void setup() {
   pinMode(BTN_TALK, INPUT_PULLUP);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
+
+  pinMode(FAN_PIN, OUTPUT);
+  digitalWrite(FAN_PIN, LOW); // Mặc định tắt quạt
+  pinMode(BTN_FAN, INPUT_PULLUP);
 
   // Khởi tạo Servo (chỉ cấu hình timer, KHÔNG attach để tránh servo bị rung)
   ESP32PWM::allocateTimer(0);

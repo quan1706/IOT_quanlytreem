@@ -146,6 +146,20 @@ class TelegramRouter:
             await self._cmd_baby_chart(chat_id, days=days)
             return
 
+        # -- /bat_quat -----------------------------------------------------
+        if clean_text.startswith("/bat_quat"):
+            from core.serverToClients.esp32_commander import ESP32Commander
+            success, msg = await ESP32Commander().execute_command("bat_quat")
+            await self.client.send_message(chat_id, f"🌬️ *Lệnh Bật quạt:* {msg}")
+            return
+
+        # -- /tat_quat -----------------------------------------------------
+        if clean_text.startswith("/tat_quat"):
+            from core.serverToClients.esp32_commander import ESP32Commander
+            success, msg = await ESP32Commander().execute_command("tat_quat")
+            await self.client.send_message(chat_id, f"🛑 *Lệnh Tắt quạt:* {msg}")
+            return
+
         # 3. Tin nhắn bình thường (AI)
         # Chỉ xử lý AI nếu là chat private HOẶC được nhắc tên (mention) trong group
         is_mentioned = chat_type == "private" or (
