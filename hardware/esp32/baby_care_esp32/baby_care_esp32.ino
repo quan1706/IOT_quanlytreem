@@ -411,8 +411,12 @@ void handleServerMessage(char* message) {
       else if (strcmp(cmd, "tat_quat") == 0) {
         setFan(false, "server");
       }
+      else if (strcmp(cmd, "tat_noi") == 0) {
+        stopCradle();
+      }
       else if (strcmp(cmd, "dung") == 0) {
         stopCradle();
+        setFan(false, "server");
       }
     }
   }
@@ -425,76 +429,47 @@ void checkVoiceCommand(String text) {
   Serial.printf("[CMD] Checking command in: %s\n", text.c_str());
   text.toLowerCase();
   
-  // --- LỆNH TẮT NÔI / DỪNG NÔI ---
-  bool isStopRockCmd = false;
-  if (text.indexOf("tắt n") >= 0) isStopRockCmd = true;
-  if (text.indexOf("dừng n") >= 0) isStopRockCmd = true;
-  if (text.indexOf("dừng ru") >= 0) isStopRockCmd = true;
-  if (text.indexOf("ngừng") >= 0) isStopRockCmd = true;
-
-  if (isStopRockCmd) {
-    Serial.println("[SERVO] >>> MATCHED! Tắt nôi!");
+  // --- LỆNH DỪNG TẤT CẢ (Khi có từ khoá 'hết' hoặc 'tất cả') ---
+  if (text.indexOf("hết") >= 0 || text.indexOf("tất cả") >= 0) {
+    Serial.println("[CMD] >>> MATCHED! Dừng tất cả thiết bị!");
     stopCradle();
-    return;
-  }
-
-  // --- LỆNH RU NÔI / RU VÕNG → Quay Servo ---
-  bool isRockCmd = false;
-  if (text.indexOf("ru n") >= 0)    isRockCmd = true;
-  if (text.indexOf("ru v") >= 0)    isRockCmd = true;
-  if (text.indexOf("ru em") >= 0)   isRockCmd = true;
-  if (text.indexOf("runo") >= 0)    isRockCmd = true;
-  if (text.indexOf("rung") >= 0)    isRockCmd = true;
-  if (text.indexOf("noi ru") >= 0)  isRockCmd = true;
-  if (text.indexOf("ru be") >= 0)   isRockCmd = true;
-  if (text.indexOf("bat noi") >= 0) isRockCmd = true;
-  if (text.indexOf("bật n") >= 0) isRockCmd = true;
-  
-  if (isRockCmd) {
-    Serial.println("[SERVO] >>> MATCHED! Bat dau dua noi!");
-    startCradle();
-    return;
-  }
-  
-  // --- LỆNH GIẢM ÂM LƯỢNG ---
-  if (text.indexOf("giảm") >= 0 && text.indexOf("âm") >= 0) {
-    // Tìm số trong chuỗi
-    int newVol = extractNumber(text);
-    if (newVol >= 0 && newVol <= 100) {
-      VOLUME_PERCENT = newVol;
-      Serial.printf("[VOL] Đã giảm âm lượng xuống %d%%\n", VOLUME_PERCENT);
-    } else {
-      // Nếu không tìm thấy số cụ thể, giảm 20%
-      VOLUME_PERCENT = max(0, VOLUME_PERCENT - 20);
-      Serial.printf("[VOL] Đã giảm âm lượng xuống %d%%\n", VOLUME_PERCENT);
-    }
-    return;
-  }
-  
-  // --- LỆNH TĂNG ÂM LƯỢNG ---
-  if (text.indexOf("tăng") >= 0 && text.indexOf("âm") >= 0) {
-    int newVol = extractNumber(text);
-    if (newVol >= 0 && newVol <= 100) {
-      VOLUME_PERCENT = newVol;
-      Serial.printf("[VOL] Đã tăng âm lượng lên %d%%\n", VOLUME_PERCENT);
-    } else {
-      VOLUME_PERCENT = min(100, VOLUME_PERCENT + 20);
-      Serial.printf("[VOL] Đã tăng âm lượng lên %d%%\n", VOLUME_PERCENT);
-    }
-    return;
-  }
-  
-  // --- LỆNH BẬT QUẠT ---
-  if (text.indexOf("bật quạt") >= 0 || text.indexOf("bat quat") >= 0 || text.indexOf("bat_quat") >= 0) {
-    Serial.println("[CMD] >>> MATCHED! Bật quạt!");
-    setFan(true, "voice");
-    return;
-  }
-
-  // --- LỆNH TẮT QUẠT ---
-  if (text.indexOf("tắt quạt") >= 0 || text.indexOf("tat quat") >= 0 || text.indexOf("tat_quat") >= 0) {
-    Serial.println("[CMD] >>> MATCHED! Tắt quạt!");
     setFan(false, "voice");
+    return;
+  }
+
+  // --- LỆNH LIÊN QUAN ĐẾN QUẠT ---
+  if (text.indexOf("quạt") >= 0 || text.indexOf("quat") >= 0) {
+    if (text.indexOf("bật") >= 0 || text.indexOf("bat") >= 0) {
+      Serial.println("[CMD] >>> MATCHED! Bật quạt!");
+      setFan(true, "voice");
+    } else if (text.indexOf("tắt") >= 0 || text.indexOf("tat") >= 0 || 
+               text.indexOf("dừng") >= 0 || text.indexOf("dung") >= 0) {
+      Serial.println("[CMD] >>> MATCHED! Tắt quạt!");
+      setFan(false, "voice");
+    }
+    return;
+  }
+
+  // --- LỆNH LIÊN QUAN ĐẾN NÔI / VÕNG ---
+  if (text.indexOf("nôi") >= 0 || text.indexOf("noi") >= 0 || 
+      text.indexOf("võng") >= 0 || text.indexOf("vong") >= 0 || 
+      text.indexOf("ru") >= 0) {
+    if (text.indexOf("tắt") >= 0 || text.indexOf("tat") >= 0 || 
+        text.indexOf("dừng") >= 0 || text.indexOf("dung") >= 0 || 
+        text.indexOf("ngừng") >= 0) {
+      Serial.println("[SERVO] >>> MATCHED! Tắt nôi!");
+      stopCradle();
+    } else {
+      Serial.println("[SERVO] >>> MATCHED! Bật nôi!");
+      startCradle();
+    }
+    return;
+  }
+
+  // --- LỆNH DỪNG CHUNG (Nói trống không "dừng", "ngừng") ---
+  if (text == "dừng" || text == "dung" || text == "ngừng" || text == "ngung" || text == "stop") {
+    Serial.println("[CMD] >>> MATCHED! Dừng nôi!");
+    stopCradle();
     return;
   }
 }

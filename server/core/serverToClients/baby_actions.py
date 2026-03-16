@@ -18,12 +18,13 @@ class BabyCareAction(Enum):
         - button_label  : nhãn hiển thị trên nút Telegram
         - description   : mô tả ngắn cho AI sử dụng khi gợi ý
     """
-    PLAY_MUSIC  = ("confirm_phat_nhac",  "🎵 Phát nhạc",  "Phát nhạc ru ngủ nhẹ nhàng dỗ bé")
-    SWING       = ("confirm_ru_vong",    "🔄 Ru võng",    "Kích hoạt võng rung nhẹ để bé ngủ")
-    FAN_ON      = ("confirm_bat_quat",   "🌬️ Bật quạt",    "Bật quạt làm mát phòng cho bé")
-    FAN_OFF     = ("confirm_tat_quat",   "🛑 Tắt quạt",    "Tắt quạt khi phòng đã mát")
-    SNAPSHOT    = ("confirm_hinh_anh",   "📸 Hình ảnh",   "Chụp ảnh mới từ camera để xem tình trạng bé")
-    STOP_ALL    = ("confirm_dung",       "⏹ Dừng",        "Dừng tất cả thiết bị đang hoạt động")
+    PLAY_MUSIC  = ("confirm_phat_nhac",  "🎵 Phát nhạc",  "Mở nhạc ru ngủ")
+    SWING       = ("confirm_ru_vong",    "🔄 Ru nôi",    "Bật nôi, ru võng, ru em")
+    CRADLE_OFF  = ("confirm_tat_noi",    "⏹ Dừng nôi",   "Tắt nôi, ngừng rung nôi")
+    FAN_ON      = ("confirm_bat_quat",   "🌬️ Bật quạt",    "Bật quạt làm mát")
+    FAN_OFF     = ("confirm_tat_quat",   "🛑 Tắt quạt",    "Tắt quạt, dừng quạt")
+    SNAPSHOT    = ("confirm_hinh_anh",   "📸 Hình ảnh",   "Chụp ảnh, xem camera")
+    STOP_ALL    = ("confirm_dung",       "⏹ Dừng tất cả", "Tắt hết mọi thiết bị")
 
     @property
     def callback_data(self) -> str:

@@ -28,15 +28,18 @@ class BabyEventMessageHandler(TextMessageHandler):
         conn.logger.bind(tag=TAG).bind(tag=TAG).info(f"Nhận sự kiện Baby Care: {event_type} - {msg_json}")
 
         if event_type == "cry_detected":
-            # Chống spam: ít nhất 15s giữa các lần báo động Khóc
-            current_time = time.time()
-            if not hasattr(conn, "last_cry_event_time"):
-                conn.last_cry_event_time = 0
-
-            if current_time - conn.last_cry_event_time < 15:
-                conn.logger.bind(tag=TAG).debug("Bỏ qua báo động Khóc để tránh spam")
+            # ── Log vào Dashboard & Chống Spam (Cooldown 60s toàn cục) ────
+            from core.serverToClients import DashboardUpdater
+            
+            rms_level = msg_json.get("rms_level", 0)
+            device_id = msg_json.get("device_id", "unknown")
+            msg = f"Phát hiện bé khóc (Mic ESP32 | device={device_id} | rms={rms_level})"
+            
+            # add_cry_event trả về False nếu đang trong thời gian cooldown
+            if not DashboardUpdater.add_cry_event(msg):
+                conn.logger.bind(tag=TAG).debug("Bỏ qua báo động Khóc do đang trong thời gian cooldown")
                 return
-            conn.last_cry_event_time = current_time
+            
             # ── Bóc tách JSON từ ESP32 ──────────────────────────────────
             rms_level = msg_json.get("rms_level", 0)
             device_id = msg_json.get("device_id", "unknown")
@@ -47,10 +50,7 @@ class BabyEventMessageHandler(TextMessageHandler):
                 f"[CRY-ALERT] device={device_id} | rms={rms_level} | ts={timestamp}"
             )
 
-            # ── Log vào Dashboard ────────────────────────────────────────
-            from core.serverToClients import DashboardUpdater
-            msg = f"Phát hiện bé khóc (Mic ESP32 | device={device_id} | rms={rms_level})"
-            DashboardUpdater.add_cry_event(msg)
+            # ── Log vào System Log (Event đã được add vào history ở trên) ──
             DashboardUpdater.add_system_log(
                 name="ESP32-Mic",
                 action="cry_detected",
@@ -197,3 +197,27 @@ class BabyEventMessageHandler(TextMessageHandler):
             )
             # Nếu Dashboard có field riêng cho quạt, cần cập nhật ở đây
             # Hiện tại ta dùng system log để người dùng thấy sự thay đổi.
+
+            # ── Gửi thông báo vào Telegram ──────────────────────────────
+            from core.telegram import TelegramClient
+            tg_config = conn.config.get("telegram", {}) if hasattr(conn, "config") else {}
+            client = TelegramClient(
+                bot_token=tg_config.get("bot_token", ""),
+                default_chat_id=tg_config.get("chat_id", ""),
+            )
+            
+            icon = "🌬️" if status == "on" else "🛑"
+            label = "BẬT" if status == "on" else "TẮT"
+            source_map = {
+                "physical_button": "Nút nhấn vật lý",
+                "server": "Bot Telegram/App",
+                "voice": "Lệnh giọng nói"
+            }
+            src_label = source_map.get(source, source)
+            
+            notify_text = (
+                f"{icon} *THÔNG BÁO QUẠT*\n"
+                f"Trạng thái: *{label}*\n"
+                f"Nguồn điều khiển: _{src_label}_"
+            )
+            asyncio.create_task(client.send_message(text=notify_text))
