@@ -48,10 +48,10 @@ unsigned long lastServoStepTime = 0;
 // ============================================================
 //  CẤU HÌNH WIFI & SERVER - SỬA THÔNG TIN NÀY CHO PHÙ HỢP
 // ============================================================
-const char* WIFI_SSID     = "Phòng 402";           // Tên WiFi nhà bạn
-const char* WIFI_PASSWORD = "79797979";             // Mật khẩu WiFi (SỬA LẠI CHO ĐÚNG)
+const char* WIFI_SSID     = "Thành Đạt";           // Tên WiFi nhà bạn
+const char* WIFI_PASSWORD = "123456789";             // Mật khẩu WiFi (SỬA LẠI CHO ĐÚNG)
 
-const char* SERVER_IP     = "192.168.0.75";      // IP máy tính chạy Server
+const char* SERVER_IP     = "172.20.10.3";      // IP máy tính chạy Server (ĐÃ CẬP NHẬT)
 const int   SERVER_PORT   = 8000;                   // Port WebSocket Server
 const char* SERVER_PATH   = "/xiaozhi/v1/";         // Đường dẫn WebSocket
 
@@ -85,13 +85,34 @@ const char* CLIENT_ID = "baby-care-client";
 // --- LED ---
 #define LED_PIN             2     // LED trên board ESP32
 
-// --- DHT22 Nhiệt độ (Tùy chọn - nếu không dùng thì comment dòng #define USE_DHT22) ---
-// #define USE_DHT22
-#ifdef USE_DHT22
+// --- Cảm biến DHT11 Nhiệt độ ---
+#define USE_DHT11
+#ifdef USE_DHT11
   #include <DHT.h>
-  #define DHT_PIN           16
-  #define DHT_TYPE          DHT22
+  #define DHT_PIN           13
+  #define DHT_TYPE          DHT11
   DHT dht(DHT_PIN, DHT_TYPE);
+#endif
+
+// --- Điều khiển Quạt (Relay + Nút nhấn vật lý) ---
+#define FAN_PIN             5     // Relay điều khiển quạt nối vào chân D5
+#define BTN_FAN             18    // Nút nhấn vật lý cho quạt nối vào chân D18
+bool isFanOn = false;             // Trạng thái quạt
+bool fanBtnPressed = false;       // Trạng thái nút nhấn quạt
+unsigned long fanBtnLastDebounce = 0;
+
+// --- Màn hình OLED (I2C) ---
+#define USE_OLED
+#ifdef USE_OLED
+  #include <Wire.h>
+  #include <Adafruit_GFX.h>
+  #include <Adafruit_SSD1306.h>
+  #define SCREEN_WIDTH 128
+  #define SCREEN_HEIGHT 64
+  #define OLED_SDA 4
+  #define OLED_SCL 15
+  #define OLED_RESET -1
+  Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #endif
 
 // ============================================================
@@ -114,8 +135,9 @@ const char* CLIENT_ID = "baby-care-client";
 //  CẤU HÌNH ĐO NHIỆT ĐỘ
 // ============================================================
 #define TEMP_READ_INTERVAL_MS   30000   // Đọc nhiệt độ mỗi 30 giây
-#define TEMP_ALERT_HIGH         32.0    // Cảnh báo nếu nhiệt độ phòng > 32°C
+#define TEMP_ALERT_HIGH         27.0    // Ngưỡng nhiệt độ cảnh báo (>=27°C)
 #define TEMP_ALERT_LOW          20.0    // Cảnh báo nếu nhiệt độ phòng < 20°C
+#define TEMP_ALERT_COOLDOWN_MS  300000  // Nghỉ 5 phút giữa các lần báo động Telegram
 
 // ============================================================
 //  BIẾN TOÀN CỤC
@@ -147,6 +169,10 @@ unsigned long lastCryCheck = 0;
 unsigned long lastTempRead = 0;
 float currentTemp = 0.0;
 float currentHumidity = 0.0;
+unsigned long lastTempAlertTime = 0;
+unsigned long lastPeriodicReport = 0;
+#define PERIODIC_REPORT_INTERVAL_MS 1200000 // 20 phút (20 * 60 * 1000)
+#define INITIAL_ALERT_DELAY_MS 0            // Cho phép báo ngay lần đầu
 
 // Biến WebSocket
 bool wsConnected = false;
@@ -254,12 +280,14 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
       Serial.println("[WS] Disconnected from server!");
       wsConnected = false;
       currentState = STATE_CONNECTING;
+      updateOLED();
       break;
 
     case WStype_CONNECTED:
       Serial.printf("[WS] Connected to server: %s:%d%s\n", SERVER_IP, SERVER_PORT, SERVER_PATH);
       wsConnected = true;
       currentState = STATE_IDLE;
+      updateOLED();
       digitalWrite(LED_PIN, HIGH);
 
       // Gửi hello message để Server nhận diện thiết bị
@@ -369,6 +397,29 @@ void handleServerMessage(char* message) {
       checkVoiceCommand(String(text));
     }
   }
+  // Server gửi lệnh điều khiển thiết bị (Direct Command)
+  else if (strcmp(type, "cmd") == 0) {
+    const char* cmd = doc["cmd"];
+    if (cmd) {
+      Serial.printf("[CMD] Received command: %s\n", cmd);
+      if (strcmp(cmd, "ru_vong") == 0 || strcmp(cmd, "phat_nhac") == 0) {
+        startCradle();
+      }
+      else if (strcmp(cmd, "bat_quat") == 0) {
+        setFan(true, "server");
+      }
+      else if (strcmp(cmd, "tat_quat") == 0) {
+        setFan(false, "server");
+      }
+      else if (strcmp(cmd, "tat_noi") == 0) {
+        stopCradle();
+      }
+      else if (strcmp(cmd, "dung") == 0) {
+        stopCradle();
+        setFan(false, "server");
+      }
+    }
+  }
 }
 
 // ============================================================
@@ -378,62 +429,47 @@ void checkVoiceCommand(String text) {
   Serial.printf("[CMD] Checking command in: %s\n", text.c_str());
   text.toLowerCase();
   
-  // --- LỆNH TẮT NÔI / DỪNG NÔI ---
-  bool isStopRockCmd = false;
-  if (text.indexOf("tắt n") >= 0) isStopRockCmd = true;
-  if (text.indexOf("dừng n") >= 0) isStopRockCmd = true;
-  if (text.indexOf("dừng ru") >= 0) isStopRockCmd = true;
-  if (text.indexOf("ngừng") >= 0) isStopRockCmd = true;
-
-  if (isStopRockCmd) {
-    Serial.println("[SERVO] >>> MATCHED! Tắt nôi!");
+  // --- LỆNH DỪNG TẤT CẢ (Khi có từ khoá 'hết' hoặc 'tất cả') ---
+  if (text.indexOf("hết") >= 0 || text.indexOf("tất cả") >= 0) {
+    Serial.println("[CMD] >>> MATCHED! Dừng tất cả thiết bị!");
     stopCradle();
+    setFan(false, "voice");
     return;
   }
 
-  // --- LỆNH RU NÔI / RU VÕNG → Quay Servo ---
-  bool isRockCmd = false;
-  if (text.indexOf("ru n") >= 0)    isRockCmd = true;
-  if (text.indexOf("ru v") >= 0)    isRockCmd = true;
-  if (text.indexOf("ru em") >= 0)   isRockCmd = true;
-  if (text.indexOf("runo") >= 0)    isRockCmd = true;
-  if (text.indexOf("rung") >= 0)    isRockCmd = true;
-  if (text.indexOf("noi ru") >= 0)  isRockCmd = true;
-  if (text.indexOf("ru be") >= 0)   isRockCmd = true;
-  if (text.indexOf("bat noi") >= 0) isRockCmd = true;
-  if (text.indexOf("bật n") >= 0) isRockCmd = true;
-  
-  if (isRockCmd) {
-    Serial.println("[SERVO] >>> MATCHED! Bat dau dua noi!");
-    startCradle();
-    return;
-  }
-  
-  // --- LỆNH GIẢM ÂM LƯỢNG ---
-  if (text.indexOf("giảm") >= 0 && text.indexOf("âm") >= 0) {
-    // Tìm số trong chuỗi
-    int newVol = extractNumber(text);
-    if (newVol >= 0 && newVol <= 100) {
-      VOLUME_PERCENT = newVol;
-      Serial.printf("[VOL] Đã giảm âm lượng xuống %d%%\n", VOLUME_PERCENT);
-    } else {
-      // Nếu không tìm thấy số cụ thể, giảm 20%
-      VOLUME_PERCENT = max(0, VOLUME_PERCENT - 20);
-      Serial.printf("[VOL] Đã giảm âm lượng xuống %d%%\n", VOLUME_PERCENT);
+  // --- LỆNH LIÊN QUAN ĐẾN QUẠT ---
+  if (text.indexOf("quạt") >= 0 || text.indexOf("quat") >= 0) {
+    if (text.indexOf("bật") >= 0 || text.indexOf("bat") >= 0) {
+      Serial.println("[CMD] >>> MATCHED! Bật quạt!");
+      setFan(true, "voice");
+    } else if (text.indexOf("tắt") >= 0 || text.indexOf("tat") >= 0 || 
+               text.indexOf("dừng") >= 0 || text.indexOf("dung") >= 0) {
+      Serial.println("[CMD] >>> MATCHED! Tắt quạt!");
+      setFan(false, "voice");
     }
     return;
   }
-  
-  // --- LỆNH TĂNG ÂM LƯỢNG ---
-  if (text.indexOf("tăng") >= 0 && text.indexOf("âm") >= 0) {
-    int newVol = extractNumber(text);
-    if (newVol >= 0 && newVol <= 100) {
-      VOLUME_PERCENT = newVol;
-      Serial.printf("[VOL] Đã tăng âm lượng lên %d%%\n", VOLUME_PERCENT);
+
+  // --- LỆNH LIÊN QUAN ĐẾN NÔI / VÕNG ---
+  if (text.indexOf("nôi") >= 0 || text.indexOf("noi") >= 0 || 
+      text.indexOf("võng") >= 0 || text.indexOf("vong") >= 0 || 
+      text.indexOf("ru") >= 0) {
+    if (text.indexOf("tắt") >= 0 || text.indexOf("tat") >= 0 || 
+        text.indexOf("dừng") >= 0 || text.indexOf("dung") >= 0 || 
+        text.indexOf("ngừng") >= 0) {
+      Serial.println("[SERVO] >>> MATCHED! Tắt nôi!");
+      stopCradle();
     } else {
-      VOLUME_PERCENT = min(100, VOLUME_PERCENT + 20);
-      Serial.printf("[VOL] Đã tăng âm lượng lên %d%%\n", VOLUME_PERCENT);
+      Serial.println("[SERVO] >>> MATCHED! Bật nôi!");
+      startCradle();
     }
+    return;
+  }
+
+  // --- LỆNH DỪNG CHUNG (Nói trống không "dừng", "ngừng") ---
+  if (text == "dừng" || text == "dung" || text == "ngừng" || text == "ngung" || text == "stop") {
+    Serial.println("[CMD] >>> MATCHED! Dừng nôi!");
+    stopCradle();
     return;
   }
 }
@@ -462,11 +498,17 @@ int extractNumber(String text) {
 // ============================================================
 void startCradle() {
   if (!isRockingCradle) {
-    Serial.println("[SERVO] Bắt đầu đưa nôi...");
+    Serial.println("[SERVO] Đưa về mốc 90 độ và bắt đầu đưa nôi...");
     myServo.setPeriodHertz(50);
     myServo.attach(SERVO_PIN, 500, 2400);
+    
+    // Bước 1: Đưa về tâm 90 độ làm mốc chuẩn
+    myServo.write(90);
+    delay(500); // Chờ servo di chuyển về vị trí
+    
     isRockingCradle = true;
-    servoPos = 0;
+    updateOLED();
+    servoPos = 90; 
     servoDirection = 1;
     lastServoStepTime = millis();
   }
@@ -477,26 +519,55 @@ void stopCradle() {
     Serial.println("[SERVO] Dừng đưa nôi.");
     isRockingCradle = false;
     myServo.detach(); // Tắt xung PWM để servo không bị rè hoặc tốn điện
+    updateOLED();
   }
 }
 
 void updateCradle() {
   if (isRockingCradle) {
-    // Mỗi 15ms nhích 1 bước
-    if (millis() - lastServoStepTime >= 15) {
+    // Mỗi 12ms nhích 1 bước (nhanh hơn 15ms)
+    if (millis() - lastServoStepTime >= 12) {
       lastServoStepTime = millis();
       
-      servoPos += (2 * servoDirection);
+      // Nhích 3 đơn vị (mạnh hơn 2 đơn vị)
+      servoPos += (3 * servoDirection);
       myServo.write(servoPos);
       
-      // Đảo chiều nếu chạm ngưỡng 0 hoặc 180
-      if (servoPos >= 180) {
-        servoPos = 180;
+      // Giới hạn quay qua quay lại quanh mốc 90 (biên độ 90 độ => từ 45 đến 135)
+      if (servoPos >= 135) {
+        servoPos = 135;
         servoDirection = -1;
-      } else if (servoPos <= 0) {
-        servoPos = 0;
+      } else if (servoPos <= 45) {
+        servoPos = 45;
         servoDirection = 1;
       }
+    }
+  }
+}
+
+// ============================================================
+//  ĐIỀU KHIỂN QUẠT
+// ============================================================
+void setFan(bool on, const char* source) {
+  if (isFanOn != on) {
+    isFanOn = on;
+    digitalWrite(FAN_PIN, isFanOn ? HIGH : LOW); // Relay kích mức HIGH để Bật
+    Serial.printf("[FAN] >>> %s từ %s\n", isFanOn ? "BẬT" : "TẮT", source);
+    updateOLED();
+    
+    // Gửi trạng thái lên server để đồng bộ
+    if (wsConnected) {
+      StaticJsonDocument<256> doc;
+      doc["type"] = "baby_event";
+      doc["event"] = "fan_status";
+      doc["status"] = isFanOn ? "on" : "off";
+      doc["source"] = source;
+      doc["device_id"] = DEVICE_ID;
+      
+      String jsonStr;
+      serializeJson(doc, jsonStr);
+      webSocket.sendTXT(jsonStr);
+      Serial.println("[FAN] Trạng thái đã gửi lên server");
     }
   }
 }
@@ -657,10 +728,10 @@ void sendCryAlert(int rmsLevel) {
 }
 
 // ============================================================
-//  ĐỌC NHIỆT ĐỘ PHÒNG (NẾU CÓ CẢM BIẾN DHT22)
+//  ĐỌC NHIỆT ĐỘ PHÒNG (NẾU CÓ CẢM BIẾN DHT11)
 // ============================================================
 void checkTemperature() {
-#ifdef USE_DHT22
+#ifdef USE_DHT11
   if (millis() - lastTempRead < TEMP_READ_INTERVAL_MS) return;
   lastTempRead = millis();
 
@@ -668,34 +739,126 @@ void checkTemperature() {
   float h = dht.readHumidity();
 
   if (isnan(t) || isnan(h)) {
-    Serial.println("[TEMP] Failed to read DHT22 sensor!");
+    Serial.println("[TEMP] Failed to read DHT11 sensor!");
     return;
   }
 
+  // Cập nhật trạng thái sensor TOÀN CỤC để hiện lên OLED
   currentTemp = t;
   currentHumidity = h;
-  Serial.printf("[TEMP] Temperature: %.1f°C, Humidity: %.1f%%\n", t, h);
+  updateOLED(); // <--- CẬP NHẬT MÀN HÌNH TẠI ĐÂY
 
-  // Gửi dữ liệu nhiệt độ lên server
-  if (wsConnected) {
+  bool alertSent = false;
+  bool periodicSent = false;
+
+  // 1. Kiểm tra báo cáo định kỳ mỗi 20 phút (Ưu tiên cao)
+  if (millis() - lastPeriodicReport >= PERIODIC_REPORT_INTERVAL_MS) {
+    lastPeriodicReport = millis();
+    periodicSent = true;
+    Serial.println("[TEMP] Sending periodic report to Telegram...");
+    if (wsConnected) {
+      StaticJsonDocument<256> doc;
+      doc["type"] = "baby_event";
+      doc["event"] = "temperature_report";
+      doc["temperature"] = t;
+      doc["humidity"] = h;
+      doc["device_id"] = DEVICE_ID;
+      String jsonStr;
+      serializeJson(doc, jsonStr);
+      webSocket.sendTXT(jsonStr);
+    }
+  }
+
+  // 2. Cảnh báo nếu nhiệt độ bất thường (>=27°C)
+  if (t >= TEMP_ALERT_HIGH) {
+    bool isCooldownOver = (lastTempAlertTime == 0) || (millis() - lastTempAlertTime >= TEMP_ALERT_COOLDOWN_MS);
+    if (isCooldownOver) {
+      if (wsConnected) {
+        lastTempAlertTime = millis();
+        alertSent = true;
+        Serial.printf("[TEMP] ⚠️ TARGET REACHED! Temp: %.1f°C >= %.1f°C. Sending alert to server...\n", t, TEMP_ALERT_HIGH);
+        StaticJsonDocument<256> doc;
+        doc["type"] = "baby_event";
+        doc["event"] = "temperature_alert";
+        doc["temperature"] = t;
+        doc["device_id"] = DEVICE_ID;
+        String jsonStr;
+        serializeJson(doc, jsonStr);
+        webSocket.sendTXT(jsonStr);
+      } else {
+        Serial.printf("[TEMP] ⚠️ Threshold reached (%.1f°C) but WebSocket NOT connected!\n", t);
+      }
+    } else {
+      if (millis() % 60000 < 5000) {
+        Serial.printf("[TEMP] High temp (%.1f°C) detected, but in cooldown (left: %lu s)\n", 
+                      t, (TEMP_ALERT_COOLDOWN_MS - (millis() - lastTempAlertTime))/1000);
+      }
+    }
+  } else if (t < TEMP_ALERT_LOW) {
+    Serial.printf("[TEMP] ⚠️ WARNING: Room too cold! %.1f°C\n", t);
+  }
+
+  // 3. Nếu không có cảnh báo/báo cáo gấp, gửi bản tin cập nhật định kỳ cho Dashboard
+  if (!alertSent && !periodicSent && wsConnected) {
     StaticJsonDocument<256> doc;
     doc["type"] = "baby_event";
     doc["event"] = "temperature";
     doc["temperature"] = t;
     doc["humidity"] = h;
     doc["device_id"] = DEVICE_ID;
-
     String jsonStr;
     serializeJson(doc, jsonStr);
     webSocket.sendTXT(jsonStr);
   }
+#endif
+}
 
-  // Cảnh báo nếu nhiệt độ bất thường
-  if (t > TEMP_ALERT_HIGH) {
-    Serial.printf("[TEMP] ⚠️ WARNING: Room too hot! %.1f°C\n", t);
-  } else if (t < TEMP_ALERT_LOW) {
-    Serial.printf("[TEMP] ⚠️ WARNING: Room too cold! %.1f°C\n", t);
+// ============================================================
+//  CẬP NHẬT MÀN HÌNH OLED
+// ============================================================
+void updateOLED() {
+#ifdef USE_OLED
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  
+  // Tiêu đề
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("BABY GUARD MONITOR");
+  display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
+
+  // Hiển thị Nhiệt độ/Độ ẩm
+  display.setTextSize(1);
+  display.setCursor(0, 20);
+  display.printf("Nhiet do: %.1f C", currentTemp);
+  display.setCursor(0, 32);
+  display.printf("Do am:    %.1f %%", currentHumidity);
+
+  // Trạng thái Server
+  display.setCursor(0, 48);
+  if (wsConnected) {
+    display.println("Server: Online");
+  } else {
+    display.println("Server: Offline");
   }
+
+  // Trạng thái nôi
+  display.setCursor(0, 56);
+  if (isRockingCradle) {
+    display.println("Noi: Dang ru...");
+  } else {
+    display.println("Noi: Dung");
+  }
+
+  // Trạng thái quạt
+  display.setCursor(64, 56);
+  if (isFanOn) {
+    display.println("Quat: ON");
+  } else {
+    display.println("Quat: OFF");
+  }
+
+  display.display();
 #endif
 }
 
@@ -716,6 +879,20 @@ void handleButton() {
       } else if (!btnPressed && currentState == STATE_LISTENING) {
         // Dừng thu âm, gửi lên server
         stopListening();
+      }
+    }
+  }
+
+  // Xử lý nút nhấn quạt (D18)
+  bool currentFanBtnState = (digitalRead(BTN_FAN) == LOW); // GND active LOW
+  if (currentFanBtnState != fanBtnPressed) {
+    if (millis() - fanBtnLastDebounce > BTN_DEBOUNCE_MS) {
+      fanBtnLastDebounce = millis();
+      fanBtnPressed = currentFanBtnState;
+      
+      if (fanBtnPressed) {
+        // Đảo trạng thái quạt khi nhấn nút
+        setFan(!isFanOn, "physical_button");
       }
     }
   }
@@ -783,6 +960,10 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
+  pinMode(FAN_PIN, OUTPUT);
+  digitalWrite(FAN_PIN, LOW); // Mặc định tắt quạt
+  pinMode(BTN_FAN, INPUT_PULLUP);
+
   // Khởi tạo Servo (chỉ cấu hình timer, KHÔNG attach để tránh servo bị rung)
   ESP32PWM::allocateTimer(0);
   ESP32PWM::allocateTimer(1);
@@ -791,9 +972,25 @@ void setup() {
   Serial.println("[SERVO] Timer đã cấu hình. Servo sẽ attach khi cần.");
 
   // Khởi tạo cảm biến nhiệt độ (nếu có)
-#ifdef USE_DHT22
+#ifdef USE_DHT11
   dht.begin();
-  Serial.println("[SENSOR] DHT22 initialized");
+  Serial.println("[SENSOR] DHT11 initialized");
+#endif
+
+  // Khởi tạo màn hình OLED
+#ifdef USE_OLED
+  Wire.begin(OLED_SDA, OLED_SCL);
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Địa chỉ I2C phổ biến là 0x3C
+    Serial.println("[OLED] SSD1306 allocation failed");
+  } else {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0,0);
+    display.println("Khoi dong...");
+    display.display();
+    Serial.println("[OLED] initialized");
+  }
 #endif
 
   // Khởi tạo I2S Audio

@@ -67,8 +67,13 @@ class ListenTextMessageHandler(TextMessageHandler):
                             from core.api.dashboard_handler import DashboardHandler, DASHBOARD_STATE
                             conn.logger.bind(tag=TAG).warning(f"YAMNet Classifier Succeeded: BÉ ĐANG KHÓC! Mode: {DASHBOARD_STATE['mode']}")
                             
-                            # Ghi lịch sử lên web
-                            DashboardHandler.add_cry_event("Phát hiện bé khóc!")
+                            # Ghi lịch sử lên web & Kiểm tra cooldown
+                            from core.serverToClients import DashboardUpdater
+                            if not DashboardUpdater.add_cry_event("YAMNet: Phát hiện bé khóc!"):
+                                conn.logger.bind(tag=TAG).debug("YAMNet alert bị chặn bởi cooldown")
+                                # Vẫn cần giải phóng ESP32
+                                await send_tts_message(conn, "stop", None)
+                                return
 
                             if DASHBOARD_STATE["mode"] == "auto":
                                 # Tự động an ủi bé

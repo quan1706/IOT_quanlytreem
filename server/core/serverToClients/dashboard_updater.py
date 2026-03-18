@@ -20,6 +20,9 @@ DASHBOARD_STATE = {
     "action_logs": [],       # Danh sách hành động từ Telegram / ESP32
     "ai_logs": [],           # Danh sách log AI đỗ dành (query, response, action, status)
     "system_logs": [],       # Danh sách log hệ thống tổng hợp: time - name - action - json
+    "temp": 0.0,             # Nhiệt độ hiện tại
+    "humidity": 0.0,         # Độ ẩm hiện tại
+    "last_cry_time": 0,      # Thời gian cuối cùng báo động khóc (cooldown toàn cục)
 }
 
 MAX_HISTORY = 50   # Giới hạn số bản ghi lưu trong bộ nhớ
@@ -42,12 +45,19 @@ class DashboardUpdater:
     # Cry events
     # ------------------------------------------------------------------
     @staticmethod
-    def add_cry_event(message: str):
+    def add_cry_event(message: str, force: bool = False):
         """
         Ghi nhận sự kiện bé khóc:
         - Thêm vào cry_history
         - In log ra server console
+        - Trả về True nếu thành công, False nếu bị chặn bởi cooldown
         """
+        current_time = time.time()
+        # Cooldown: 60 giây giữa các lần báo động khóc để tránh spam (Toàn cục)
+        if not force and (current_time - DASHBOARD_STATE.get("last_cry_time", 0) < 60):
+            return False
+
+        DASHBOARD_STATE["last_cry_time"] = current_time
         time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         entry = {"time": time_str, "message": message}
         DASHBOARD_STATE["cry_history"].append(entry)
@@ -59,6 +69,7 @@ class DashboardUpdater:
             f"[CRY EVENT] {time_str} | {message}"
         )
         DashboardUpdater.add_system_log("Cry-Detection", "cry_detected", {"msg": message})
+        return True
 
     # ------------------------------------------------------------------
     # Action logs (từ Telegram button / lệnh text)
@@ -158,6 +169,13 @@ class DashboardUpdater:
     # ------------------------------------------------------------------
     # Mode
     # ------------------------------------------------------------------
+    @staticmethod
+    def update_sensor_data(temp: float, humidity: float):
+        """Cập nhật dữ liệu từ cảm biến lên dashboard state."""
+        DASHBOARD_STATE["temp"] = temp
+        DASHBOARD_STATE["humidity"] = humidity
+        DashboardUpdater.add_system_log("Sensor", "update", {"t": temp, "h": humidity})
+
     @staticmethod
     def set_mode(mode: str):
         DASHBOARD_STATE["mode"] = mode

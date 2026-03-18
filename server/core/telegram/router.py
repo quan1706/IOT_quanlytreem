@@ -59,7 +59,18 @@ class TelegramRouter:
             DashboardUpdater.add_action_log(
                 action=command,
                 source="telegram_button",
-                result="Đã ghi log (chưa kết nối phần cứng)",
+                result="Đang gửi lệnh xuống thiết bị...",
+            )
+
+            # 3. Gửi lệnh xuống ESP32 trực tiếp
+            from core.serverToClients.esp32_commander import ESP32Commander
+            success, exec_msg = await ESP32Commander().execute_command(command)
+            
+            # Cập nhật kết quả vào log
+            DashboardUpdater.add_action_log(
+                action=command,
+                source="telegram_button",
+                result=exec_msg,
             )
 
             # 3. Reply Telegram
@@ -146,6 +157,20 @@ class TelegramRouter:
             await self._cmd_baby_chart(chat_id, days=days)
             return
 
+        # -- /bat_quat -----------------------------------------------------
+        if clean_text.startswith("/bat_quat"):
+            from core.serverToClients.esp32_commander import ESP32Commander
+            success, msg = await ESP32Commander().execute_command("bat_quat")
+            await self.client.send_message(chat_id, f"🌬️ *Lệnh Bật quạt:* {msg}")
+            return
+
+        # -- /tat_quat -----------------------------------------------------
+        if clean_text.startswith("/tat_quat"):
+            from core.serverToClients.esp32_commander import ESP32Commander
+            success, msg = await ESP32Commander().execute_command("tat_quat")
+            await self.client.send_message(chat_id, f"🛑 *Lệnh Tắt quạt:* {msg}")
+            return
+
         # 3. Tin nhắn bình thường (AI)
         # Chỉ xử lý AI nếu là chat private HOẶC được nhắc tên (mention) trong group
         is_mentioned = chat_type == "private" or (
@@ -168,7 +193,8 @@ class TelegramRouter:
                 mode=state['mode'].upper(),
                 battery="85",
                 esp_status="Đang kết nối ✅",
-                temp="26.5",
+                temp=state.get('temp', '--'),
+                humidity=state.get('humidity', '--'),
                 baby_state="Bé đang ngủ ngon 😴",
                 baby_posture="Nằm ngửa ✅",
                 ai_key=self.dashboard_handler.current_key
@@ -341,7 +367,28 @@ class TelegramRouter:
         ai_result = await AIProcessor.analyze_intent_conversational(
             clean_text, actual_key, history=history, msg_config=self.msg_config
         )
-        self.logger.bind(tag=TAG).info(f"[AI] Kết quả: {ai_result}")
+        
+        # --- Fallback Regex (Nếu AI không nhận lệnh hoặc lỗi Rate Limit) ---
+        if not ai_result or not ai_result.get("actions") or "none" in ai_result["actions"]:
+            regex_actions = []
+            if any(kw in clean_text.lower() for kw in ["ru nôi", "ru vong", "ru võng", "bật nôi", "đưa võng"]):
+                regex_actions.append("ru_vong")
+            if any(kw in clean_text.lower() for kw in ["tắt nôi", "dừng nôi", "ngừng nôi", "dừng nôi"]):
+                regex_actions.append("tat_noi")
+            if any(kw in clean_text.lower() for kw in ["bật quạt", "bat quat", "mở quạt"]):
+                regex_actions.append("bat_quat")
+            if any(kw in clean_text.lower() for kw in ["tắt quạt", "dừng quạt", "tat quat"]):
+                regex_actions.append("tat_quat")
+            if any(kw in clean_text.lower() for kw in ["dừng hết", "tắt hết", "dừng tất cả"]):
+                regex_actions.append("dung")
+            
+            if regex_actions:
+                ai_result = {
+                    "actions": regex_actions,
+                    "reply": "Tôi đã nhận ra lệnh của bạn, bạn có muốn thực hiện không?"
+                }
+
+        self.logger.bind(tag=TAG).info(f"[AI] Kết quả cuối cùng: {ai_result}")
 
         if ai_result:
             actions = ai_result["actions"]
@@ -385,16 +432,16 @@ class TelegramRouter:
                 confirm_text = reply_msg if not query_actions else ""
                 await self.alerts.send_ai_confirmation(chat_id, confirm_text, intent_key)
             
-            # Nếu không có control actions và cũng chưa gửi reply (vì k có query)
+            # 3. Nếu KHÔNG có action nào nhưng CÓ reply_msg từ AI (chat thông thường của Intent LLM)
             if not query_actions and not control_actions and reply_msg:
                 await self.client.send_message(chat_id, reply_msg)
 
         else:
+            # Fallback nếu analyze_intent fail hoàn toàn (lỗi API hoặc parse)
             conv_reply = await AIProcessor.chat_conversational(clean_text, actual_key)
             default_reply = self.msg_config.get("commands", {}).get("ai_default_reply", {}).get("text", "😊")
             response_text = conv_reply or default_reply
             # ... rest of history logic ...
-
             history.append({"role": "user", "content": clean_text})
             history.append({"role": "assistant", "content": response_text})
             self.conversation_history[str(chat_id)] = history[-10:]

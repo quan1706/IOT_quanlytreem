@@ -365,7 +365,9 @@ class DashboardHandler:
     def add_cry_event(message):
         """Ghi nhận sự kiện bé khóc và gửi Telegram alert."""
         from core.serverToClients import DashboardUpdater
-        DashboardUpdater.add_cry_event(message)
+        # Nếu bị chặn bởi cooldown, sẽ không tiếp tục gửi Telegram
+        if not DashboardUpdater.add_cry_event(message):
+            return
 
         time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         from core.telegram import TelegramClient, TelegramAlerts

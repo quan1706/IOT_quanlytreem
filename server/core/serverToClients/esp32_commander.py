@@ -60,7 +60,7 @@ class ESP32Commander:
         from core.serverToClients.dashboard_updater import DashboardUpdater
 
         label = self._get_label(command)
-        esp32_payload = {"cmd": command}
+        esp32_payload = {"type": "cmd", "cmd": command}
 
         self.logger.bind(tag=TAG).info(
             f"[COMMAND] Tiếp nhận lệnh: {command} ({label})"
@@ -86,7 +86,7 @@ class ESP32Commander:
         sent_count = 0
         for ws in list(self.connections):
             try:
-                await ws.send_str(json.dumps(esp32_payload))
+                await ws.send(json.dumps(esp32_payload))
                 sent_count += 1
             except Exception as e:
                 self.logger.bind(tag=TAG).error(

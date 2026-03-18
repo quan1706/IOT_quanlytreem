@@ -174,7 +174,7 @@ ASR:
     output_dir: tmp/
   GroqASR:
     type: openai
-    api_key: your_groq_api_key
+    api_key: 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
     base_url: https://api.groq.com/openai/v1/audio/transcriptions
     model_name: whisper-large-v3-turbo
     output_dir: tmp/
