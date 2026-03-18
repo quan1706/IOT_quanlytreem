@@ -13,40 +13,40 @@ logger = setup_logging()
 
 
 class VoiceprintProvider:
-    """声纹识别服务提供者"""
+    """Nhà cung cấp dịch vụ nhận dạng giọng nói (Voiceprint Provider)"""
     
     def __init__(self, config: dict):
         self.original_url = config.get("url", "")
         self.speakers = config.get("speakers", [])
         self.speaker_map = self._parse_speakers()
-        # 声纹识别相似度阈值，默认0.4
+        # Ngưỡng tương đồng nhận dạng giọng nói, mặc định 0.4
         self.similarity_threshold = float(config.get("similarity_threshold", 0.4))
         
-        # 解析API地址和密钥
+        # Phân tích địa chỉ API và khóa
         self.api_url = None
         self.api_key = None
         self.speaker_ids = []
         
         if not self.original_url:
-            logger.bind(tag=TAG).warning("声纹识别URL未配置，声纹识别将被禁用")
+            logger.bind(tag=TAG).warning("URL nhận dạng giọng nói chưa được cấu hình, chức năng này sẽ bị vô hiệu hóa")
             self.enabled = False
         else:
-            # 解析URL和key
+            # Phân tích URL và key
             parsed_url = urlparse(self.original_url)
             base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
             
-            # 从查询参数中提取key
+            # Trích xuất key từ các tham số truy vấn
             query_params = parse_qs(parsed_url.query)
             self.api_key = query_params.get('key', [''])[0]
             
             if not self.api_key:
-                logger.bind(tag=TAG).error("URL中未找到key参数，声纹识别将被禁用")
+                logger.bind(tag=TAG).error("Không tìm thấy tham số key trong URL, nhận dạng giọng nói sẽ bị vô hiệu hóa")
                 self.enabled = False
             else:
-                # 构造identify接口地址
+                # Xây dựng địa chỉ giao diện identify
                 self.api_url = f"{base_url}/voiceprint/identify"
                 
-                # 提取speaker_ids
+                # Phân tích speaker_ids
                 for speaker_str in self.speakers:
                     try:
                         parts = speaker_str.split(",", 2)
@@ -56,21 +56,21 @@ class VoiceprintProvider:
                     except Exception:
                         continue
                 
-                # 检查是否有有效的说话人配置
+                # Kiểm tra xem có cấu hình người nói hợp lệ không
                 if not self.speaker_ids:
-                    logger.bind(tag=TAG).warning("未配置有效的说话人，声纹识别将被禁用")
+                    logger.bind(tag=TAG).warning("Chưa cấu hình người nói hợp lệ, nhận dạng giọng nói sẽ bị vô hiệu hóa")
                     self.enabled = False
                 else:
-                    # 进行健康检查，验证服务器是否可用
+                    # Thực hiện kiểm tra sức khỏe (health check), xác minh máy chủ có khả dụng không
                     if self._check_server_health():
                         self.enabled = True
-                        logger.bind(tag=TAG).info(f"声纹识别已启用: API={self.api_url}, 说话人={len(self.speaker_ids)}个, 相似度阈值={self.similarity_threshold}")
+                        logger.bind(tag=TAG).info(f"Nhận dạng giọng nói đã được kích hoạt: API={self.api_url}, Người nói={len(self.speaker_ids)}, Ngưỡng tương đồng={self.similarity_threshold}")
                     else:
                         self.enabled = False
-                        logger.bind(tag=TAG).warning(f"声纹识别服务器不可用，声纹识别已禁用: {self.api_url}")
+                        logger.bind(tag=TAG).warning(f"Máy chủ nhận dạng giọng nói không khả dụng, nhận dạng giọng nói đã bị vô hiệu hóa: {self.api_url}")
     
     def _parse_speakers(self) -> Dict[str, Dict[str, str]]:
-        """解析说话人配置"""
+        """Phân tích cấu hình người nói"""
         speaker_map = {}
         for speaker_str in self.speakers:
             try:
@@ -82,84 +82,84 @@ class VoiceprintProvider:
                         "description": description
                     }
             except Exception as e:
-                logger.bind(tag=TAG).warning(f"解析说话人配置失败: {speaker_str}, 错误: {e}")
+                logger.bind(tag=TAG).warning(f"Phân tích cấu hình người nói thất bại: {speaker_str}, Lỗi: {e}")
         return speaker_map
     
     def _check_server_health(self) -> bool:
-        """检查声纹识别服务器健康状态"""
+        """Kiểm tra trạng thái sức khỏe của máy chủ nhận dạng giọng nói"""
         if not self.api_url or not self.api_key:
             return False
     
         cache_key = f"{self.api_url}:{self.api_key}"
         
-        # 检查缓存
+        # Kiểm tra bộ đệm
         cached_result = cache_manager.get(CacheType.VOICEPRINT_HEALTH, cache_key)
         if cached_result is not None:
-            logger.bind(tag=TAG).debug(f"使用缓存的健康状态: {cached_result}")
+            logger.bind(tag=TAG).debug(f"Sử dụng trạng thái sức khỏe từ bộ đệm: {cached_result}")
             return cached_result
         
-        # 缓存过期或不存在
-        logger.bind(tag=TAG).info("执行声纹服务器健康检查")
+        # Bộ đệm hết hạn hoặc không tồn tại
+        logger.bind(tag=TAG).info("Thực hiện kiểm tra sức khỏe máy chủ nhận dạng giọng nói")
         
         try:
-            # 健康检查URL
+            # URL kiểm tra sức khỏe
             parsed_url = urlparse(self.api_url)
             health_url = f"{parsed_url.scheme}://{parsed_url.netloc}/voiceprint/health?key={self.api_key}"
             
-            # 发送健康检查请求
+            # Gửi yêu cầu kiểm tra sức khỏe
             response = requests.get(health_url, timeout=3)
             
             if response.status_code == 200:
                 result = response.json()
                 if result.get("status") == "healthy":
-                    logger.bind(tag=TAG).info("声纹识别服务器健康检查通过")
+                    logger.bind(tag=TAG).info("Máy chủ nhận dạng giọng nói đã vượt qua kiểm tra sức khỏe")
                     is_healthy = True
                 else:
-                    logger.bind(tag=TAG).warning(f"声纹识别服务器状态异常: {result}")
+                    logger.bind(tag=TAG).warning(f"Trạng thái máy chủ nhận dạng giọng nói bất thường: {result}")
                     is_healthy = False
             else:
-                logger.bind(tag=TAG).warning(f"声纹识别服务器健康检查失败: HTTP {response.status_code}")
+                logger.bind(tag=TAG).warning(f"Kiểm tra sức khỏe máy chủ nhận dạng giọng nói thất bại: HTTP {response.status_code}")
                 is_healthy = False
                 
         except requests.exceptions.ConnectTimeout:
-            logger.bind(tag=TAG).warning("声纹识别服务器连接超时")
+            logger.bind(tag=TAG).warning("Kết nối máy chủ nhận dạng giọng nói quá hạn")
             is_healthy = False
         except requests.exceptions.ConnectionError:
-            logger.bind(tag=TAG).warning("声纹识别服务器连接被拒绝")
+            logger.bind(tag=TAG).warning("Kết nối máy chủ nhận dạng giọng nói bị từ chối")
             is_healthy = False
         except Exception as e:
-            logger.bind(tag=TAG).warning(f"声纹识别服务器健康检查异常: {e}")
+            logger.bind(tag=TAG).warning(f"Kiểm tra sức khỏe máy chủ nhận dạng giọng nói gặp lỗi: {e}")
             is_healthy = False
         
-        # 使用全局缓存管理器缓存结果
+        # Sử dụng trình quản lý bộ đệm toàn cục để lưu kết quả
         cache_manager.set(CacheType.VOICEPRINT_HEALTH, cache_key, is_healthy)
-        logger.bind(tag=TAG).info(f"健康检查结果已缓存: {is_healthy}")
+        logger.bind(tag=TAG).info(f"Kết quả kiểm tra sức khỏe đã được lưu đệm: {is_healthy}")
         
         return is_healthy
     
     async def identify_speaker(self, audio_data: bytes, session_id: str) -> Optional[str]:
-        """识别说话人"""
+        """Nhận dạng người nói"""
         if not self.enabled or not self.api_url or not self.api_key:
-            logger.bind(tag=TAG).debug("声纹识别功能已禁用或未配置，跳过识别")
+            logger.bind(tag=TAG).debug("Tính năng nhận dạng giọng nói đã bị tắt hoặc chưa được cấu hình, bỏ qua nhận dạng")
             return None
             
         try:
             api_start_time = time.monotonic()
             
-            # 准备请求头
+            # Chuẩn bị các header yêu cầu
             headers = {
                 'Authorization': f'Bearer {self.api_key}',
                 'Accept': 'application/json'
             }
             
-            # 准备multipart/form-data数据
+            # Chuẩn bị dữ liệu multipart/form-data
             data = aiohttp.FormData()
             data.add_field('speaker_ids', ','.join(self.speaker_ids))
             data.add_field('file', audio_data, filename='audio.wav', content_type='audio/wav')
             
             timeout = aiohttp.ClientTimeout(total=10)
             
-            # 网络请求
+            # Yêu cầu mạng
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(self.api_url, headers=headers, data=data) as response:
                     
@@ -169,30 +169,30 @@ class VoiceprintProvider:
                         score = result.get("score", 0)
                         total_elapsed_time = time.monotonic() - api_start_time
                         
-                        logger.bind(tag=TAG).info(f"声纹识别耗时: {total_elapsed_time:.3f}s")
+                        logger.bind(tag=TAG).info(f"Thời gian nhận dạng giọng nói: {total_elapsed_time:.3f}s")
                         
-                        # 相似度阈值检查
+                        # Kiểm tra ngưỡng tương đồng
                         if score < self.similarity_threshold:
-                            logger.bind(tag=TAG).warning(f"声纹识别相似度{score:.3f}低于阈值{self.similarity_threshold}")
-                            return "未知说话人"
+                            logger.bind(tag=TAG).warning(f"Độ tương đồng nhận dạng giọng nói {score:.3f} thấp hơn ngưỡng {self.similarity_threshold}")
+                            return "Người nói không xác định"
                         
                         if speaker_id and speaker_id in self.speaker_map:
                             result_name = self.speaker_map[speaker_id]["name"]
-                            logger.bind(tag=TAG).info(f"声纹识别成功: {result_name} (相似度: {score:.3f})")
+                            logger.bind(tag=TAG).info(f"Nhận dạng giọng nói thành công: {result_name} (Độ tương đồng: {score:.3f})")
                             return result_name
                         else:
-                            logger.bind(tag=TAG).warning(f"未识别的说话人ID: {speaker_id}")
-                            return "未知说话人"
+                            logger.bind(tag=TAG).warning(f"ID người nói không xác định: {speaker_id}")
+                            return "Người nói không xác định"
                     else:
-                        logger.bind(tag=TAG).error(f"声纹识别API错误: HTTP {response.status}")
+                        logger.bind(tag=TAG).error(f"Lỗi API nhận dạng giọng nói: HTTP {response.status}")
                         return None
                         
         except asyncio.TimeoutError:
             elapsed = time.monotonic() - api_start_time
-            logger.bind(tag=TAG).error(f"声纹识别超时: {elapsed:.3f}s")
+            logger.bind(tag=TAG).error(f"Nhận dạng giọng nói quá hạn: {elapsed:.3f}s")
             return None
         except Exception as e:
             elapsed = time.monotonic() - api_start_time
-            logger.bind(tag=TAG).error(f"声纹识别失败: {e}")
+            logger.bind(tag=TAG).error(f"Nhận dạng giọng nói thất bại: {e}")
             return None
 

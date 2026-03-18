@@ -23,7 +23,7 @@ class Message:
 class Dialogue:
     def __init__(self):
         self.dialogue: List[Message] = []
-        # 获取当前时间
+        # Lấy thời gian hiện tại
         self.current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def put(self, message: Message):
@@ -46,14 +46,13 @@ class Dialogue:
             dialogue.append({"role": m.role, "content": m.content})
 
     def get_llm_dialogue(self) -> List[Dict[str, str]]:
-        # 直接调用get_llm_dialogue_with_memory，传入None作为memory_str
-        # 这样确保说话人功能在所有调用路径下都生效
+        # Gọi trực tiếp get_llm_dialogue_with_memory, truyền None làm memory_str
+        # Điều này đảm bảo chức năng người nói có hiệu lực trong mọi đường dẫn gọi
         return self.get_llm_dialogue_with_memory(None, None)
 
     def update_system_message(self, new_content: str):
-        """更新或添加系统消息"""
-        # 查找第一个系统消息
-        system_msg = next((msg for msg in self.dialogue if msg.role == "system"), None)
+        """Cập nhật hoặc thêm tin nhắn hệ thống"""
+        # Tìm tin nhắn hệ thống đầu tiên        system_msg = next((msg for msg in self.dialogue if msg.role == "system"), None)
         if system_msg:
             system_msg.content = new_content
         else:
@@ -62,23 +61,23 @@ class Dialogue:
     def get_llm_dialogue_with_memory(
         self, memory_str: str = None, voiceprint_config: dict = None
     ) -> List[Dict[str, str]]:
-        # 构建对话
+        # Xây dựng hội thoại
         dialogue = []
 
-        # 添加系统提示和记忆
+        # Thêm thông báo hệ thống và bộ nhớ
         system_message = next(
             (msg for msg in self.dialogue if msg.role == "system"), None
         )
 
         if system_message:
-            # 基础系统提示
+            # Thông báo hệ thống cơ sở
             enhanced_system_prompt = system_message.content
-            # 替换时间占位符
+            # Thay thế trình giữ chỗ thời gian
             enhanced_system_prompt = enhanced_system_prompt.replace(
                 "{{current_time}}", datetime.now().strftime("%H:%M")
             )
-
-            # 添加说话人个性化描述
+ 
+            # Thêm mô tả cá nhân hóa cho người nói
             try:
                 speakers = voiceprint_config.get("speakers", [])
                 if speakers:
@@ -88,19 +87,19 @@ class Dialogue:
                             parts = speaker_str.split(",", 2)
                             if len(parts) >= 2:
                                 name = parts[1].strip()
-                                # 如果描述为空，则为""
+                                # Nếu mô tả trống, thì để là ""
                                 description = (
                                     parts[2].strip() if len(parts) >= 3 else ""
                                 )
-                                enhanced_system_prompt += f"\n- {name}：{description}"
+                                enhanced_system_prompt += f"\n- {name}: {description}"
                         except:
                             pass
                     enhanced_system_prompt += "\n\n</speakers_info>"
             except:
-                # 配置读取失败时忽略错误，不影响其他功能
+                # Bỏ qua lỗi khi đọc cấu hình thất bại, không ảnh hưởng đến các chức năng khác
                 pass
-
-            # 使用正则表达式匹配 <memory> 标签，不管中间有什么内容
+ 
+            # Sử dụng các biểu thức chính quy để khớp với thẻ <memory>, không quan tâm nội dung ở giữa là gì
             if memory_str is not None:
                 enhanced_system_prompt = re.sub(
                     r"<memory>.*?</memory>",
@@ -110,9 +109,9 @@ class Dialogue:
                 )
             dialogue.append({"role": "system", "content": enhanced_system_prompt})
 
-        # 添加用户和助手的对话
+        # Thêm cuộc đối thoại giữa người dùng và trợ lý
         for m in self.dialogue:
-            if m.role != "system":  # 跳过原始的系统消息
+            if m.role != "system":  # Bỏ qua tin nhắn hệ thống gốc
                 self.getMessages(m, dialogue)
 
         return dialogue

@@ -21,7 +21,7 @@ class FileLock:
                 return self.file
             except portalocker.LockException:
                 if time.time() - self.start_time > self.timeout:
-                    raise TimeoutError("获取文件锁超时")
+                    raise TimeoutError("Quá hạn lấy khóa tệp")
                 time.sleep(0.1)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -35,19 +35,19 @@ class WakeupWordsConfig:
         self._ensure_directories()
         self._config_cache = None
         self._last_load_time = 0
-        self._cache_ttl = 1  # 缓存有效期（秒）
-        self._lock_timeout = 5  # 文件锁超时时间（秒）
+        self._cache_ttl = 1  # Thời gian hiệu lực của bộ đệm (giây)
+        self._lock_timeout = 5  # Thời gian quá hạn khóa tệp (giây)
 
     def _ensure_directories(self):
-        """确保必要的目录存在"""
+        """Đảm bảo các thư mục cần thiết tồn tại"""
         os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
         os.makedirs(self.assets_dir, exist_ok=True)
 
     def _load_config(self) -> Dict:
-        """加载配置文件，使用缓存机制"""
+        """Tải tệp cấu hình, sử dụng cơ chế bộ đệm"""
         current_time = time.time()
-
-        # 如果缓存有效，直接返回缓存
+ 
+        # Nếu bộ đệm còn hiệu lực, trả về bộ đệm trực tiếp
         if (
             self._config_cache is not None
             and current_time - self._last_load_time < self._cache_ttl
@@ -64,14 +64,14 @@ class WakeupWordsConfig:
                     self._last_load_time = current_time
                     return config
         except (TimeoutError, IOError) as e:
-            print(f"加载配置文件失败: {e}")
+            print(f"Tải tệp cấu hình thất bại: {e}")
             return {}
         except Exception as e:
-            print(f"加载配置文件时发生未知错误: {e}")
+            print(f"Xảy ra lỗi không xác định khi tải tệp cấu hình: {e}")
             return {}
 
     def _save_config(self, config: Dict):
-        """保存配置到文件，使用文件锁保护"""
+        """Lưu cấu hình vào tệp, sử dụng khóa tệp để bảo vệ"""
         try:
             with open(self.config_file, "w", encoding="utf-8") as f:
                 with FileLock(f, timeout=self._lock_timeout):
@@ -79,21 +79,21 @@ class WakeupWordsConfig:
                     self._config_cache = config
                     self._last_load_time = time.time()
         except (TimeoutError, IOError) as e:
-            print(f"保存配置文件失败: {e}")
+            print(f"Lưu tệp cấu hình thất bại: {e}")
             raise
         except Exception as e:
-            print(f"保存配置文件时发生未知错误: {e}")
+            print(f"Xảy ra lỗi không xác định khi lưu tệp cấu hình: {e}")
             raise
 
     def get_wakeup_response(self, voice: str) -> Dict:
         voice = hashlib.md5(voice.encode()).hexdigest()
-        """获取唤醒词回复配置"""
+        """Lấy cấu hình phản hồi từ khóa đánh thức"""
         config = self._load_config()
 
         if not config or voice not in config:
             return None
-
-        # 检查文件大小
+ 
+        # Kiểm tra kích thước tệp
         file_path = config[voice]["file_path"]
         if not os.path.exists(file_path) or os.stat(file_path).st_size < (15 * 1024):
             return None
@@ -101,9 +101,9 @@ class WakeupWordsConfig:
         return config[voice]
 
     def update_wakeup_response(self, voice: str, file_path: str, text: str):
-        """更新唤醒词回复配置"""
+        """Cập nhật cấu hình phản hồi từ khóa đánh thức"""
         try:
-            # 过滤表情符号
+            # Lọc các biểu tượng cảm xúc (emoji)
             filtered_text = re.sub(r'[\U0001F600-\U0001F64F\U0001F900-\U0001F9FF]', '', text)
             
             config = self._load_config()
@@ -116,25 +116,25 @@ class WakeupWordsConfig:
             }
             self._save_config(config)
         except Exception as e:
-            print(f"更新唤醒词回复配置失败: {e}")
+            print(f"Cập nhật cấu hình phản hồi từ khóa đánh thức thất bại: {e}")
             raise
 
     def generate_file_path(self, voice: str) -> str:
-        """生成音频文件路径，使用voice的哈希值作为文件名"""
+        """Tạo đường dẫn tệp âm thanh, sử dụng giá trị băm của voice làm tên tệp"""
         try:
-            # 生成voice的哈希值
+            # Tạo giá trị băm của voice
             voice_hash = hashlib.md5(voice.encode()).hexdigest()
             file_path = os.path.join(self.assets_dir, f"{voice_hash}.wav")
-
-            # 如果文件已存在，先删除
+ 
+            # Nếu tệp đã tồn tại, xóa nó trước
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)
                 except Exception as e:
-                    print(f"删除已存在的音频文件失败: {e}")
+                    print(f"Xóa tệp âm thanh đã tồn tại thất bại: {e}")
                     raise
 
             return file_path
         except Exception as e:
-            print(f"生成音频文件路径失败: {e}")
+            print(f"Tạo đường dẫn tệp âm thanh thất bại: {e}")
             raise
