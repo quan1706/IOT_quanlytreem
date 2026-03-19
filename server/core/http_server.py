@@ -4,6 +4,9 @@ from config.logger import setup_logging
 from core.api.ota_handler import OTAHandler
 from core.api.vision_handler import VisionHandler
 from core.api.dashboard_handler import DashboardHandler
+from core.api.pose_handler import PoseHandler
+
+BABY_POSE_CHECK_INTERVAL_SECONDS = 300  # 5 phút một lần để check baby pose
 
 TAG = __name__
 
@@ -15,6 +18,7 @@ class SimpleHttpServer:
         self.ota_handler = OTAHandler(config)
         self.vision_handler = VisionHandler(config)
         self.dashboard_handler = DashboardHandler(config)
+        self.pose_handler = PoseHandler(config)
 
     def _get_websocket_url(self, local_ip: str, port: int) -> str:
         """Lấy địa chỉ websocket
@@ -92,6 +96,14 @@ class SimpleHttpServer:
             self.logger.bind(tag=TAG).error(f"Lỗi xử lý /api/cry: {e}")
             return web.json_response({"success": False, "error": str(e)}, status=500)
 
+    async def _periodic_pose_check(self):
+        """Task nền: gửi lệnh check pose mỗi 5 phút một lần cho các thiết bị ESP32."""
+        from core.serverToClients.esp32_commander import ESP32Commander
+        while True:
+            await asyncio.sleep(BABY_POSE_CHECK_INTERVAL_SECONDS)
+            self.logger.bind(tag=TAG).info("[AUTO POSE CHECK] Đang gửi lệnh chụp ảnh Baby Pose...")
+            await ESP32Commander().execute_command("capture_pose")
+
     async def start(self):
         try:
             server_config = self.config["server"]
@@ -139,6 +151,7 @@ class SimpleHttpServer:
                         
                         # Route Baby Care - gọi thẳng method nội bộ
                         web.post("/api/cry", self._handle_cry),
+                        web.post("/api/vision/pose", self.pose_handler.handle_post),
                     ]
                 )
 
@@ -151,7 +164,11 @@ class SimpleHttpServer:
                 # Khởi động Telegram Bot (từ package mới)
                 from core.telegram import TelegramBot
                 self._telegram_bot = TelegramBot(self.config, self.dashboard_handler)
+                self.pose_handler.set_telegram_alerts(self._telegram_bot.alerts)
                 asyncio.create_task(self._telegram_bot.start())
+
+                # Chạy task kiểm tra periodic baby pose
+                asyncio.create_task(self._periodic_pose_check())
 
                 # Duy trì dịch vụ hoạt động
                 while True:

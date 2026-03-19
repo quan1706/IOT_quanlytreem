@@ -142,6 +142,57 @@ class TelegramClient:
             self.logger.bind(tag=TAG).error(f"Lỗi sendPhotoUrl: {e}")
             return False
 
+    async def edit_message_text(
+        self, chat_id, message_id, text: str, parse_mode: str = "Markdown", reply_markup: dict = None
+    ) -> bool:
+        """Chỉnh sửa nội dung tin nhắn text."""
+        url = f"{self.base_url}/editMessageText"
+        payload = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": text,
+            "parse_mode": parse_mode,
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+
+        try:
+            session = await self._get_session()
+            async with session.post(url, json=payload) as resp:
+                result = await resp.json()
+                if result.get("ok"):
+                    return True
+                return False
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi editMessageText: {e}")
+            return False
+
+    async def edit_message_caption(
+        self, chat_id, message_id, caption: str, parse_mode: str = "Markdown", reply_markup: dict = None
+    ) -> bool:
+        """Chỉnh sửa caption của ảnh đã gửi."""
+        url = f"{self.base_url}/editMessageCaption"
+        payload = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "caption": caption,
+            "parse_mode": parse_mode,
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+
+        try:
+            session = await self._get_session()
+            async with session.post(url, json=payload) as resp:
+                result = await resp.json()
+                if result.get("ok"):
+                    self.logger.bind(tag=TAG).info("editMessageCaption thành công")
+                    return True
+                return False
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi editMessageCaption: {e}")
+            return False
+
     async def answer_callback_query(
         self, callback_query_id: str, text: str = "", show_alert: bool = False
     ) -> bool:
@@ -158,6 +209,23 @@ class TelegramClient:
                 return (await resp.json()).get("ok", False)
         except Exception as e:
             self.logger.bind(tag=TAG).error(f"Lỗi answerCallbackQuery: {e}")
+            return False
+
+    async def set_my_commands(self, commands: list) -> bool:
+        """Đăng ký danh sách các lệnh auto-complete với Telegram."""
+        url = f"{self.base_url}/setMyCommands"
+        payload = {"commands": commands}
+        try:
+            session = await self._get_session()
+            async with session.post(url, json=payload) as resp:
+                result = await resp.json()
+                if result.get("ok"):
+                    self.logger.bind(tag=TAG).info("setMyCommands thành công")
+                    return True
+                self.logger.bind(tag=TAG).error(f"setMyCommands thất bại: {result}")
+                return False
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi setMyCommands: {e}")
             return False
 
     async def get_updates(self, offset: int = 0, timeout: int = 20) -> list:

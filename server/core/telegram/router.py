@@ -5,6 +5,14 @@ Routing logic cho Telegram Bot — xử lý commands, callback buttons, và AI c
 Tách biệt khỏi polling loop (bot.py) để dễ đọc và mở rộng.
 """
 from config.logger import setup_logging
+from core.telegram.menu_builder import (
+    get_main_reply_keyboard,
+    get_monitor_inline_keyboard,
+    get_control_inline_keyboard,
+    get_settings_inline_keyboard,
+    get_unified_inline_menu,
+    get_chart_action_keyboard
+)
 
 TAG = "TelegramRouter"
 
@@ -47,6 +55,91 @@ class TelegramRouter:
         message_cb = callback.get("message", {})
         chat_id = message_cb.get("chat", {}).get("id")
         if not chat_id:
+            return
+
+        if cb_data.startswith("menu_"):
+            await self.client.answer_callback_query(cb_id)
+            if cb_data == "menu_status":
+                from core.api.dashboard_handler import DASHBOARD_STATE
+                await self._cmd_status(chat_id, DASHBOARD_STATE)
+            elif cb_data == "menu_cry_history":
+                await self._cmd_cry_history(chat_id)
+            elif cb_data == "menu_chart_1":
+                await self._cmd_baby_chart(chat_id, days=1)
+            elif cb_data == "menu_chart_7":
+                await self._cmd_baby_chart(chat_id, days=7)
+            elif cb_data == "menu_chart_combined":
+                await self._cmd_combined_chart(chat_id)
+            elif cb_data == "menu_ai_analyze_":
+                pass # Sẽ xử lý bên dưới bằng startswith
+            elif cb_data == "menu_mode_auto":
+                await self._cmd_mode(chat_id, "/mode auto")
+            elif cb_data == "menu_mode_manual":
+                await self._cmd_mode(chat_id, "/mode manual")
+            elif cb_data == "menu_mock_on":
+                from core.serverToClients import DashboardUpdater
+                DashboardUpdater.set_mock_mode(True)
+                await self.client.send_message(chat_id, "✅ Đã BẬT chế độ dữ liệu mẫu.")
+            elif cb_data == "menu_mock_off":
+                from core.serverToClients import DashboardUpdater
+                DashboardUpdater.set_mock_mode(False)
+                await self.client.send_message(chat_id, "❌ Đã TẮT chế độ dữ liệu mẫu.")
+            elif cb_data == "menu_help":
+                bot_info = await self.client.get_me()
+                await self._cmd_help(chat_id, bot_username=bot_info.get("username", ""))
+            elif cb_data == "menu_help_setkey":
+                await self.client.send_message(chat_id, "Để cài đặt API key của Groq, hãy gửi:\n`/setkey gsk_YOUR_API_KEY`")
+            elif cb_data == "menu_cat_monitor":
+                await self.client.send_message(chat_id, "📊 Menu Giám sát:", reply_markup=get_monitor_inline_keyboard())
+            elif cb_data == "menu_cat_control":
+                await self.client.send_message(chat_id, "🎛️ Menu Điều khiển:", reply_markup=get_control_inline_keyboard())
+            elif cb_data == "menu_cat_setting":
+                await self.client.send_message(chat_id, "🤖 Menu Cài đặt:", reply_markup=get_settings_inline_keyboard())
+            elif cb_data == "menu_start":
+                # Quay lại menu chính
+                from core.telegram.menu_builder import get_unified_inline_menu
+                await self.client.send_message(
+                    chat_id, "✨ *Menu chính:* Chọn chức năng bên dưới:",
+                    reply_markup=get_unified_inline_menu()
+                )
+            
+            # --- Xử lý AI nhận xét biểu đồ ---
+            if cb_data.startswith("menu_ai_analyze_"):
+                target = cb_data.replace("menu_ai_analyze_", "")
+                await self.client.answer_callback_query(cb_id, text="🤖 Tiểu Bảo đang xem biểu đồ...")
+                
+                from core.utils.chart_gen import generate_mock_cry_data, generate_combined_mock_data
+                from core.serverToClients.ai_processor import AIProcessor
+                
+                # 1. Lấy dữ liệu phù hợp
+                if target == "combined":
+                    labels, values, temps = generate_combined_mock_data(days=1)
+                    data_str = "Dữ liệu kết hợp:\n" + "\n".join([f"- {labels[i]}: Khóc {values[i]}, Nhiệt độ {temps[i]}°C" for i in range(len(labels))])
+                    days = 1
+                else:
+                    days = int(target)
+                    labels, values = generate_mock_cry_data(days=days)
+                    # Lấy top điểm để AI dễ đọc
+                    indexed = list(enumerate(values))
+                    summary_idx = sorted(list(set(
+                        [i for i, v in sorted(indexed, key=lambda x: x[1], reverse=True)[:10]] + 
+                        [len(values)-1, len(values)-2]
+                    )))
+                    data_str = "\n".join([f"- {labels[i]}: {values[i]}" for i in summary_idx if i < len(labels)])
+
+                # 2. Gọi AI
+                actual_key = self.config.get("LLM", {}).get("GroqLLM", {}).get("api_key", "")
+                if not actual_key:
+                    actual_key = self.config.get("ASR", {}).get("GroqASR", {}).get("api_key", "")
+
+                summary = await AIProcessor.summarize_baby_condition(actual_key, data_str, days)
+                
+                # 3. Cập nhật Caption
+                current_caption = message_cb.get("caption", "")
+                ai_prefix = self.msg_config.get("commands", {}).get("ai_summary_prefix", {}).get("text", "\n\n🤖 *Đánh giá từ Tiểu Bảo:*\n")
+                new_caption = current_caption + ai_prefix + summary
+                
+                await self.client.edit_message_caption(chat_id, message_cb.get("message_id"), new_caption)
             return
 
         if cb_data.startswith("confirm_"):
@@ -124,7 +217,18 @@ class TelegramRouter:
         # 2. Kiểm tra Slash Commands dựa trên clean_text
         # -- /start (Welcome) ----------------------------------------------
         if clean_text.startswith("/start"):
-            await self._cmd_welcome(chat_id)
+            await self._cmd_welcome(chat_id, chat_type=chat_type)
+            return
+
+        # -- Nhận diện phím Reply Keyboard ---------------------------------
+        if clean_text == "📊 Giám sát":
+            await self.client.send_message(chat_id, "Vui lòng chọn chức năng Giám sát:", reply_markup=get_monitor_inline_keyboard())
+            return
+        if clean_text == "🎛️ Điều khiển":
+            await self.client.send_message(chat_id, "Vui lòng chọn chức năng Điều khiển:", reply_markup=get_control_inline_keyboard())
+            return
+        if clean_text == "🤖 AI & Cài đặt":
+            await self.client.send_message(chat_id, "Vui lòng chọn Cài đặt hoặc hỏi AI:", reply_markup=get_settings_inline_keyboard())
             return
 
         # -- /help ---------------------------------------------------------
@@ -171,12 +275,38 @@ class TelegramRouter:
             await self.client.send_message(chat_id, f"🛑 *Lệnh Tắt quạt:* {msg}")
             return
 
-        # 3. Tin nhắn bình thường (AI)
+        # -- /check_baby_pose ----------------------------------------------
+        if clean_text.startswith("/check_baby_pose") or clean_text.startswith("/pose"):
+            from core.serverToClients.esp32_commander import ESP32Commander
+            success, msg = await ESP32Commander().execute_command("capture_pose")
+            
+            if success:
+                reply_txt = "📸 *Lệnh chụp ảnh:* Đã yêu cầu Camera kiểm tra tư thế bé! Vui lòng chờ vài giây..."
+            else:
+                reply_txt = f"❌ *Lỗi:* {msg}"
+            
+            await self.client.send_message(chat_id, reply_txt)
+            return
+
+        # 3. Tin nhắn bình thường (AI) hoặc Ping gọi Menu
         # Chỉ xử lý AI nếu là chat private HOẶC được nhắc tên (mention) trong group
+        # HOẶC gọi tên gợi nhớ (tiểu bảo, bảo bảo,...)
+        trigger_names = ["tiểu bảo", "bảo bảo", "bảo ơi", "tiểu bảo ơi", "bé ơi"]
+        is_named = any(name in clean_text.lower() for name in trigger_names)
+
         is_mentioned = chat_type == "private" or (
             bot_username and f"@{bot_username}" in text
-        )
+        ) or is_named
+
         if not is_mentioned:
+            return
+
+        # Nếu ping trống (@bot) hoặc gọi menu (@bot menu) -> mở menu luôn
+        if clean_text.lower() in ("", "menu", "bảng điều khiển", "menu chính"):
+            from core.telegram.menu_builder import get_unified_inline_menu
+            await self.client.send_message(
+                chat_id, "✨ Chọn chức năng bên dưới:", reply_markup=get_unified_inline_menu()
+            )
             return
 
         await self._handle_ai_message(chat_id, clean_text)
@@ -235,54 +365,67 @@ class TelegramRouter:
         await self.client.send_message(chat_id, msg)
 
     async def _cmd_baby_chart(self, chat_id, prefix: str = "", days: int = 1):
-        """Handler cho lệnh /baby_chart — hiển thị thống kê tiếng khóc kèm đánh giá AI."""
+        """Handler cho lệnh /baby_chart — hiển thị thống kê kèm nút gọi AI nhận xét."""
         from core.utils.chart_gen import generate_mock_cry_data, get_cry_chart_url
-        from core.serverToClients.ai_processor import AIProcessor
+        from core.telegram.menu_builder import get_chart_action_keyboard
         
         self.logger.bind(tag=TAG).info(f"[CMD] /baby_chart {days} days from {chat_id}")
         
         # 1. Lấy dữ liệu
         labels, values = generate_mock_cry_data(days=days)
         
+        # Kiểm tra nếu dữ liệu là fallback
+        is_fallback = False
+        if days == 1 and labels and "/" in labels[0]:
+            is_fallback = True
+        
         # 2. Tạo URL biểu đồ
         title_suffix = f"trong {days} ngày" if days > 1 else "trong 24h"
-        title = f"Thống kê tiếng khóc {title_suffix}"
+        title = "Lịch sử gần nhất (Dữ liệu cũ)" if is_fallback else f"Thống kê tiếng khóc {title_suffix}"
+            
         chart_url = get_cry_chart_url(labels, values, title=title)
         
-        # 3. Lấy đánh giá từ AI (Summarize)
-        actual_key = self.config.get("LLM", {}).get("GroqLLM", {}).get("api_key", "")
-        if not actual_key:
-            actual_key = self.config.get("ASR", {}).get("GroqASR", {}).get("api_key", "")
-            
-        ai_summary = ""
-        if actual_key and values:
-            # Tạo chuỗi tóm tắt dữ liệu cho AI: chỉ lấy các mốc có giá trị cao hoặc đại diện
-            # Nếu quá nhiều điểm, chỉ lấy top 10 điểm cao nhất và 5 điểm gần nhất
-            indexed_values = list(enumerate(values))
-            top_points = sorted(indexed_values, key=lambda x: x[1], reverse=True)[:10]
-            recent_points = indexed_values[-5:]
-            
-            summary_points = sorted(list(set(top_points + recent_points)), key=lambda x: x[0])
-            data_str = "\n".join([f"- {labels[i]}: {values[i]}" for i, v in summary_points])
-            
-            ai_summary = await AIProcessor.summarize_baby_condition(actual_key, data_str, days)
-        
-        # 4. Gửi cho người dùng
-        cfg_key = f"baby_chart_{days}" if days in (1, 3, 7) else "baby_chart"
-        base_caption = self.msg_config.get("commands", {}).get(cfg_key, {}).get("caption", "📊 Biểu đồ thống kê")
-        
+        # 3. Caption & Keyboard
+        base_caption = self.msg_config.get("commands", {}).get("baby_chart", {}).get("text", "📊 Biểu đồ:")
         caption = (prefix + "\n\n" if prefix else "") + base_caption
-        if ai_summary:
-            ai_prefix = self.msg_config.get("commands", {}).get("ai_summary_prefix", {}).get("text", "\n\n🤖 *Đánh giá từ Tiểu Bảo:*\n")
-            caption += ai_prefix + ai_summary
+        if is_fallback:
+            caption += "\n\n⚠️ *Lưu ý:* Không có dữ liệu trong 24h qua. Đang hiển thị các bản ghi gần nhất."
+            
+        caption += "\n\n💡 Nhấn nút dưới đây để *Tiểu Bảo* nhận xét về biểu đồ này."
+        
+        await self.client.send_photo_url(chat_id, chart_url, caption=caption, reply_markup=get_chart_action_keyboard(str(days)))
+
+    async def _cmd_combined_chart(self, chat_id):
+        """Xuất biểu đồ tổng hợp (Khóc + Nhiệt độ) kèm nút gọi AI nhận xét."""
+        from core.utils.chart_gen import generate_combined_mock_data, get_dual_chart_url
+        from core.serverToClients.dashboard_updater import DASHBOARD_STATE
+        from core.telegram.menu_builder import get_chart_action_keyboard
+        
+        # Nếu không ở mock mode, có thể thông báo người dùng bật lên
+        is_mock = DASHBOARD_STATE.get("mock_mode", False)
+        
+        # Luôn sinh dữ liệu mẫu cho tính năng này như yêu cầu (vì hiện tại chưa có DB nhiệt độ thật)
+        labels, cry, temps = generate_combined_mock_data(days=1)
+        
+        title = "Biểu đồ Tổng hợp (Dữ liệu mẫu)" if is_mock else "Biểu đồ Tổng hợp (Demo)"
+        chart_url = get_dual_chart_url(labels, cry, temps, title=title)
+        
+        caption = "📊 *Biểu đồ kết hợp Khóc & Nhiệt độ:*\n\n"
+        caption += "- 🔴 Trục trái: Cường độ tiếng khóc (RMS)\n"
+        caption += "- 🔵 Trục phải: Nhiệt độ môi trường (°C)\n\n"
+        
+        if not is_mock:
+            caption += "💡 *Mẹo:* Bạn có thể bật 'Dữ liệu mẫu' trong phần Cài đặt để thấy các điểm tương quan giả lập."
             
         await self.client.send_photo_url(chat_id, chart_url, caption=caption)
 
-    async def _cmd_welcome(self, chat_id, prefix: str = ""):
+    async def _cmd_welcome(self, chat_id, prefix: str = "", chat_type: str = "private"):
         """Chào mừng và giới thiệu hệ thống."""
         tmpl = self.msg_config.get("commands", {}).get("welcome", {}).get("text", "🍼 Welcome")
         msg = (prefix + "\n\n" if prefix else "") + tmpl
-        await self.client.send_message(chat_id, msg)
+        
+        # Luôn sử dụng Unified Inline Menu để tăng tính tương tác
+        await self.client.send_message(chat_id, msg, reply_markup=get_unified_inline_menu())
 
     async def _cmd_help(self, chat_id, prefix: str = "", bot_username: str = ""):
         """Hướng dẫn sử dụng."""
@@ -434,7 +577,7 @@ class TelegramRouter:
             
             # 3. Nếu KHÔNG có action nào nhưng CÓ reply_msg từ AI (chat thông thường của Intent LLM)
             if not query_actions and not control_actions and reply_msg:
-                await self.client.send_message(chat_id, reply_msg)
+                await self.client.send_message(chat_id, reply_msg, reply_markup=get_unified_inline_menu())
 
         else:
             # Fallback nếu analyze_intent fail hoàn toàn (lỗi API hoặc parse)
@@ -447,4 +590,4 @@ class TelegramRouter:
             self.conversation_history[str(chat_id)] = history[-10:]
 
             DashboardUpdater.add_system_log("Chat", "conversation", {"q": clean_text[:40]})
-            await self.client.send_message(chat_id, response_text)
+            await self.client.send_message(chat_id, response_text, reply_markup=get_unified_inline_menu())
