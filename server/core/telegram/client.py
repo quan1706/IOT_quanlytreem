@@ -142,6 +142,75 @@ class TelegramClient:
             self.logger.bind(tag=TAG).error(f"Lỗi sendPhotoUrl: {e}")
             return False
 
+    async def send_voice(
+        self,
+        chat_id=None,
+        voice_data: bytes = b"",
+        caption: str = "",
+        reply_markup: dict = None,
+        reply_to_message_id: int = None
+    ) -> bool:
+        """Gửi tin nhắn thoại (voice message)."""
+        chat_id = chat_id or self.default_chat_id
+        url = f"{self.base_url}/sendVoice"
+
+        form = aiohttp.FormData()
+        form.add_field("chat_id", str(chat_id))
+        if caption:
+            form.add_field("caption", caption)
+            form.add_field("parse_mode", "Markdown")
+        if reply_markup:
+            form.add_field("reply_markup", json.dumps(reply_markup))
+        if reply_to_message_id:
+            form.add_field("reply_parameters", json.dumps({"message_id": reply_to_message_id}))
+            
+        form.add_field(
+            "voice", voice_data, filename="voice.ogg", content_type="audio/ogg"
+        )
+
+        try:
+            session = await self._get_session()
+            async with session.post(url, data=form) as resp:
+                result = await resp.json()
+                if result.get("ok"):
+                    self.logger.bind(tag=TAG).info("Gửi tin nhắn thoại thành công")
+                    return True
+                self.logger.bind(tag=TAG).error(f"sendVoice thất bại: {result}")
+                return False
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi sendVoice: {e}")
+            return False
+
+    async def get_file(self, file_id: str) -> dict:
+        """Lấy thông tin file metadata từ Telegram."""
+        url = f"{self.base_url}/getFile"
+        payload = {"file_id": file_id}
+        try:
+            session = await self._get_session()
+            async with session.post(url, json=payload) as resp:
+                result = await resp.json()
+                if result.get("ok"):
+                    return result.get("result", {})
+                self.logger.bind(tag=TAG).error(f"getFile thất bại: {result}")
+                return {}
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi getFile: {e}")
+            return {}
+
+    async def download_file(self, file_path: str) -> bytes:
+        """Tải file từ Telegram."""
+        url = f"https://api.telegram.org/file/bot{self.bot_token}/{file_path}"
+        try:
+            session = await self._get_session()
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    return await resp.read()
+                self.logger.bind(tag=TAG).error(f"Tải file thất bại, HTTP {resp.status}")
+                return b""
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi download_file: {e}")
+            return b""
+
     async def edit_message_text(
         self, chat_id, message_id, text: str, parse_mode: str = "Markdown", reply_markup: dict = None
     ) -> bool:

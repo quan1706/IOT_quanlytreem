@@ -70,6 +70,10 @@ def get_settings_inline_keyboard():
                 {"text": "🧪 Dữ liệu mẫu: TẮT", "callback_data": "menu_mock_off"}
             ],
             [
+                {"text": "🎙️ Voice: BẬT", "callback_data": "menu_voice_on"},
+                {"text": "🔇 Voice: TẮT", "callback_data": "menu_voice_off"}
+            ],
+            [
                 {"text": "🔑 Hướng dẫn Set API Key", "callback_data": "menu_help_setkey"},
                 {"text": "📚 Help / Hướng dẫn", "callback_data": "menu_help"}
             ],

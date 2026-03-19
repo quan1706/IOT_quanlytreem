@@ -35,6 +35,7 @@ class TelegramRouter:
         self.dashboard_handler = dashboard_handler
         self.logger = setup_logging()
         self.conversation_history: dict[str, list] = {}
+        self.voice_mode_enabled: dict[str, bool] = {}
         
         # Tải cấu hình tin nhắn từ YAML
         from core.utils.util import load_telegram_config
@@ -84,6 +85,10 @@ class TelegramRouter:
                 from core.serverToClients import DashboardUpdater
                 DashboardUpdater.set_mock_mode(False)
                 await self.client.send_message(chat_id, "❌ Đã TẮT chế độ dữ liệu mẫu.")
+            elif cb_data == "menu_voice_on":
+                await self._cmd_voice_mode(chat_id, "/voice on")
+            elif cb_data == "menu_voice_off":
+                await self._cmd_voice_mode(chat_id, "/voice off")
             elif cb_data == "menu_help":
                 bot_info = await self.client.get_me()
                 await self._cmd_help(chat_id, bot_username=bot_info.get("username", ""))
@@ -197,9 +202,21 @@ class TelegramRouter:
         from core.serverToClients import DashboardUpdater, AIProcessor
         from core.api.dashboard_handler import DASHBOARD_STATE
 
-        text = message.get("text", "")
         chat_id = message.get("chat", {}).get("id")
         chat_type = message.get("chat", {}).get("type")
+        is_voice_input = False
+        voice = message.get("voice")
+
+        if voice and chat_id:
+            await self.client.send_message(chat_id, "⏳ Đang nhận dạng giọng nói...")
+            text = await self._transcribe_voice(voice)
+            if not text:
+                await self.client.send_message(chat_id, "❌ Không thể nhận dạng được giọng nói.")
+                return
+            message["text"] = text
+            is_voice_input = True
+
+        text = message.get("text", "")
 
         if not text or not chat_id:
             return
@@ -239,6 +256,11 @@ class TelegramRouter:
         # -- /status -------------------------------------------------------
         if clean_text.startswith("/status"):
             await self._cmd_status(chat_id, DASHBOARD_STATE)
+            return
+
+        # -- /voice --------------------------------------------------------
+        if clean_text.startswith("/voice"):
+            await self._cmd_voice_mode(chat_id, clean_text)
             return
 
         # -- /mode ---------------------------------------------------------
@@ -309,7 +331,7 @@ class TelegramRouter:
             )
             return
 
-        await self._handle_ai_message(chat_id, clean_text)
+        await self._handle_ai_message(chat_id, clean_text, is_voice_input)
 
     # ------------------------------------------------------------------
     # Command handlers
@@ -348,6 +370,18 @@ class TelegramRouter:
         else:
             msg = self.msg_config.get("commands", {}).get("mode_error", {}).get("text", "❌ Error")
             await self.client.send_message(chat_id, msg)
+
+    async def _cmd_voice_mode(self, chat_id, text: str):
+        new_mode = text.replace("/voice", "").strip().lower()
+        if new_mode in ("on", "bật"):
+            self.voice_mode_enabled[str(chat_id)] = True
+            await self.client.send_message(chat_id, "🎙️ Đã BẬT chế độ phản hồi bằng giọng nói.")
+        elif new_mode in ("off", "tắt"):
+            self.voice_mode_enabled[str(chat_id)] = False
+            await self.client.send_message(chat_id, "🔇 Đã TẮT chế độ phản hồi bằng giọng nói.")
+        else:
+            current = "BẬT" if self.voice_mode_enabled.get(str(chat_id)) else "TẮT"
+            await self.client.send_message(chat_id, f"Trạng thái voice hiện tại: {current}.\nDùng `/voice on` hoặc `/voice off` để thay đổi.")
 
     async def _cmd_setkey(self, chat_id, text: str):
         from core.serverToClients import DashboardUpdater
@@ -484,10 +518,72 @@ class TelegramRouter:
         final_msg = (prefix + "\n\n" if prefix else "") + f"👶 *Tiểu Bảo trả lời:*\n{answer}"
         await self.client.send_message(chat_id, final_msg)
 
+    async def _transcribe_voice(self, voice: dict) -> str:
+        file_id = voice.get("file_id")
+        if not file_id:
+            return ""
+            
+        file_info = await self.client.get_file(file_id)
+        file_path = file_info.get("file_path")
+        if not file_path:
+            return ""
+            
+        voice_data = await self.client.download_file(file_path)
+        if not voice_data:
+            return ""
+            
+        import tempfile
+        import os
+        from core.providers.asr.openai import ASRProvider
+        
+        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as f:
+            f.write(voice_data)
+            temp_path = f.name
+            
+        try:
+            asr_config = self.config.get("ASR", {}).get("GroqASR", {})
+            provider = ASRProvider(asr_config, False)
+            class MockArtifacts:
+                def __init__(self, p):
+                    self.temp_path = p
+            
+            text, _ = await provider.speech_to_text(None, None, "ogg", MockArtifacts(temp_path))
+            return text
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi nhận dạng giọng nói Telegram: {e}")
+            return ""
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    async def _send_voice_if_needed(self, chat_id, text, is_voice_input):
+        if not text:
+            return
+            
+        voice_mode = self.voice_mode_enabled.get(str(chat_id), False)
+        if not (is_voice_input or voice_mode):
+            return
+            
+        try:
+            import edge_tts
+            # Sử dụng voice tiếng Việt
+            voice_config = self.config.get("TTS", {}).get("EdgeTTS", {})
+            voice_name = voice_config.get("voice", "vi-VN-HoaiMyNeural")
+            
+            communicate = edge_tts.Communicate(text, voice=voice_name)
+            audio_data = b""
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_data += chunk["data"]
+            if audio_data:
+                await self.client.send_voice(chat_id, audio_data)
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi tạo TTS Telegram: {e}")
+
     # ------------------------------------------------------------------
     # AI message handling
     # ------------------------------------------------------------------
-    async def _handle_ai_message(self, chat_id, clean_text: str):
+    async def _handle_ai_message(self, chat_id, clean_text: str, is_voice_input: bool = False):
         from core.serverToClients import DashboardUpdater, AIProcessor
 
         actual_key = self.config.get("LLM", {}).get("GroqLLM", {}).get("api_key", "")
@@ -578,6 +674,9 @@ class TelegramRouter:
             # 3. Nếu KHÔNG có action nào nhưng CÓ reply_msg từ AI (chat thông thường của Intent LLM)
             if not query_actions and not control_actions and reply_msg:
                 await self.client.send_message(chat_id, reply_msg, reply_markup=get_unified_inline_menu())
+                
+            if reply_msg:
+                await self._send_voice_if_needed(chat_id, reply_msg, is_voice_input)
 
         else:
             # Fallback nếu analyze_intent fail hoàn toàn (lỗi API hoặc parse)
@@ -590,4 +689,7 @@ class TelegramRouter:
             self.conversation_history[str(chat_id)] = history[-10:]
 
             DashboardUpdater.add_system_log("Chat", "conversation", {"q": clean_text[:40]})
-            await self.client.send_message(chat_id, response_text, reply_markup=get_unified_inline_menu())
+            self.logger.bind(tag=TAG).info(f"Fallback response len {len(response_text)}")
+            if len(response_text.strip()) > 0:
+                await self.client.send_message(chat_id, response_text, reply_markup=get_unified_inline_menu())
+                await self._send_voice_if_needed(chat_id, response_text, is_voice_input)
