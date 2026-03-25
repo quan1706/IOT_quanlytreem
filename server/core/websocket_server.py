@@ -103,9 +103,9 @@ class WebSocketServer:
             parsed_url = urlparse(request_path)
             query_params = parse_qs(parsed_url.query)
             if "device-id" not in query_params:
-                await websocket.send("Cổng hoạt động bình thường, nếu cần kiểm tra kết nối, hãy sử dụng test_page.html")
-                await websocket.close()
-                return
+                # Nếu thiếu device-id, gán mặc định để không từ chối các phiên bản ESPCAM cũ hoặc chuẩn AI-Thinker
+                self.logger.bind(tag=TAG).warning("Thiếu device-id trong kết nối WebSocket. Gán mặc định: ESP32-CAM")
+                websocket.request.headers["device-id"] = "ESP32-CAM"
             else:
                 websocket.request.headers["device-id"] = query_params["device-id"][0]
             if "client-id" in query_params:

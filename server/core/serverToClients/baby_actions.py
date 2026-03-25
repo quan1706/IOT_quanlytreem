@@ -23,7 +23,8 @@ class BabyCareAction(Enum):
     CRADLE_OFF  = ("confirm_tat_noi",    "⏹ Dừng nôi",   "Tắt nôi, ngừng rung nôi")
     FAN_ON      = ("confirm_bat_quat",   "🌬️ Bật quạt",    "Bật quạt làm mát")
     FAN_OFF     = ("confirm_tat_quat",   "🛑 Tắt quạt",    "Tắt quạt, dừng quạt")
-    SNAPSHOT    = ("confirm_hinh_anh",   "📸 Hình ảnh",   "Chụp ảnh, xem camera")
+    SNAPSHOT    = ("confirm_hinh_anh",   "📸 Hình ảnh",   "Chụp ảnh nhanh")
+    CAPTURE_HQ  = ("confirm_capture_hq", "🖼️ Chụp HQ",    "Chụp ảnh chất lượng cao")
     STOP_ALL    = ("confirm_dung",       "⏹ Dừng tất cả", "Tắt hết mọi thiết bị")
 
     @property

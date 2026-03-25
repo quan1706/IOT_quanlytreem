@@ -2,31 +2,40 @@
 serverToClients/esp32_commander.py
 
 Module chịu trách nhiệm gửi lệnh điều khiển từ Server -> ESP32.
-
-Hiện tại đang chạy ở localhost nên chưa có kết nối WebSocket thật đến
-thiết bị vật lý. Mỗi lời gọi execute_command() sẽ:
-  1. Ghi log server rõ ràng
-  2. Trả về tuple (success, message) để caller biết kết quả
-  3. (TODO) Gửi qua WebSocket khi có public server / kết nối ổn định
 """
+import json
+import asyncio
 from config.logger import setup_logging
 
 TAG = "ESP32Commander"
 
+class ESP32Connection:
+    def __init__(self, websocket, device_id, role):
+        self.websocket = websocket
+        self.device_id = device_id
+        self.metadata = {"role": role}
+
+    async def send_message(self, message):
+        """Gửi tin nhắn dưới dạng JSON hoặc raw bytes/string."""
+        if isinstance(message, (dict, list)):
+            data = json.dumps(message)
+            await self.websocket.send(data)
+        elif isinstance(message, bytes):
+            await self.websocket.send(message)
+        else:
+            await self.websocket.send(str(message))
 
 class ESP32Commander:
     """
     Thực thi lệnh điều khiển ESP32.
     Singleton – tất cả module dùng chung một instance.
     """
-
     _instance = None
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.logger = setup_logging()
-            # Placeholder: danh sách WebSocket connections đến ESP32
             cls._instance.connections = []
             cls._instance._is_playing_music = False
             cls._instance._music_task = None
@@ -39,161 +48,117 @@ class ESP32Commander:
         action = BabyCareAction.from_callback(f"confirm_{command}")
         return action.button_label if action else f"Lệnh: {command}"
 
-    def register_connection(self, ws_connection):
-        """Đăng ký WebSocket connection mới từ ESP32."""
-        self.connections.append(ws_connection)
+    def register_connection(self, ws_connection, device_id: str = "unknown", role: str = "unknown"):
+        """Đăng ký WebSocket connection mới kèm metadata."""
+        # Kiểm tra xem connection này đã tồn tại chưa
+        for conn in self.connections:
+            if conn.websocket == ws_connection:
+                conn.device_id = device_id
+                conn.metadata["role"] = role
+                return
+
+        new_conn = ESP32Connection(ws_connection, device_id, role)
+        self.connections.append(new_conn)
         self.logger.bind(tag=TAG).info(
-            f"[WS] Đã thêm ESP32 connection. Tổng số: {len(self.connections)}"
+            f"[WS] Đã thêm ESP32 connection: {device_id} ({role}). Tổng số: {len(self.connections)}"
         )
 
     def unregister_connection(self, ws_connection):
         """Hủy đăng ký WebSocket connection khi ESP32 ngắt kết nối."""
-        if ws_connection in self.connections:
-            self.connections.remove(ws_connection)
-            self.logger.bind(tag=TAG).info(
-                f"[WS] Đã xóa ESP32 connection. Tổng số: {len(self.connections)}"
-            )
+        self.connections = [c for c in self.connections if c.websocket != ws_connection]
+        self.logger.bind(tag=TAG).info(
+            f"[WS] Đã xóa ESP32 connection. Tổng số: {len(self.connections)}"
+        )
 
     async def play_music_task(self, filepath: str):
-        """Khởi chạy vòng lặp bất đồng bộ để stream file MP3 -> PCM 16kHz xuống thẳng loa ESP32."""
+        """Stream file âm thanh xuống thẳng loa ESP32."""
         from core.utils.util import audio_to_data
-        import asyncio
-        import json
-
+        
         self._is_playing_music = True
-        self.logger.bind(tag=TAG).info(f"[MUSIC] Đang tải file nhạc ra RAM: {filepath}")
         try:
-            # Dùng util.py có sẵn của dự án để ép mp3 về chuẩn raw PCM 16-bit 16kHz
-            # is_opus=False -> trả về byte array
             audio_chunks = await audio_to_data(filepath, is_opus=False, use_cache=False)
-            
-            self.logger.bind(tag=TAG).info(f"[MUSIC] Bắt đầu stream {len(audio_chunks)} chunks âm thanh...")
-            total_duration = len(audio_chunks) * 0.06
-            self.logger.bind(tag=TAG).info(f"[MUSIC] Thời lượng bản nhạc: ~{total_duration:.1f} giây")
+            start_msg = {"type": "tts", "state": "start"}
+            for conn in list(self.connections):
+                try: await conn.send_message(start_msg)
+                except: pass
 
-            # Báo hiệu cho ESP32 chuyển màn hình sang chế độ SPEAKING (tuỳ chọn)
-            start_msg = json.dumps({"type": "tts", "state": "start"})
-            for ws in list(self.connections):
-                try: await ws.send(start_msg)
-                except Exception: pass
-
-            # Vòng lặp bắn từng mẩu âm thanh (60ms) xuống client
-            # Không dùng await ws.send() block chết process mà xài sleep để dãn cách
             for chunk in audio_chunks:
-                if not self._is_playing_music:
-                    self.logger.bind(tag=TAG).info("[MUSIC] Đã bị ngắt (Interrupt) giữa chừng!")
-                    break
-
-                for ws in list(self.connections):
-                    try:
-                        await ws.send(chunk)
-                    except Exception as e:
-                        if ws in self.connections:
-                            self.connections.remove(ws)
-                
-                # Sleep chuẩn 60ms - trừ đi tí xíu overhead 
+                if not self._is_playing_music: break
+                for conn in list(self.connections):
+                    try: await conn.send_message(chunk)
+                    except: pass
                 await asyncio.sleep(0.055) 
 
-            # Báo hiệu kết thúc
-            stop_msg = json.dumps({"type": "tts", "state": "stop"})
-            for ws in list(self.connections):
-                try: await ws.send(stop_msg)
-                except Exception: pass
-
+            stop_msg = {"type": "tts", "state": "stop"}
+            for conn in list(self.connections):
+                try: await conn.send_message(stop_msg)
+                except: pass
         except Exception as e:
-            self.logger.bind(tag=TAG).error(f"[MUSIC] Lỗi trong quá trình stream nhạc: {e}")
+            self.logger.bind(tag=TAG).error(f"[MUSIC] Lỗi stream nhạc: {e}")
         finally:
-            self.logger.bind(tag=TAG).info("[MUSIC] Kết thúc hàm stream!")
             self._is_playing_music = False
 
     async def execute_command(self, command: str) -> tuple[bool, str]:
-        """
-        Thực thi lệnh xuống ESP32.
-        """
-        import json
+        """Thực thi lệnh xuống ESP32."""
         from core.serverToClients.dashboard_updater import DashboardUpdater
 
         label = self._get_label(command)
         esp32_payload = {"type": "cmd", "cmd": command}
 
-        self.logger.bind(tag=TAG).info(
-            f"[COMMAND] Tiếp nhận lệnh: {command} ({label})"
-        )
+        self.logger.bind(tag=TAG).info(f"[COMMAND] Tiếp nhận lệnh: {command} ({label})")
 
-        # Xử lý đặc biệt cho lệnh nhạc & dừng
         import os
-        import asyncio
-
-        # Nhạc mặc định phát khi bật nôi (thay tên file này để đổi nhạc)
-        CRADLE_MUSIC_FILE = "nhacrubengu.mp3"
-
         music_dir = os.path.join(os.getcwd(), "data", "music")
         os.makedirs(music_dir, exist_ok=True)
 
         if command == "ru_vong":
-            # Bật nôi → phát nhạc ru ngủ cố định
             self._is_playing_music = False
-            filepath = os.path.join(music_dir, CRADLE_MUSIC_FILE)
+            filepath = os.path.join(music_dir, "nhacrubengu.mp3")
             if os.path.isfile(filepath):
-                self.logger.bind(tag=TAG).info(f"[MUSIC] Bật nôi → phát nhạc ru bé: {CRADLE_MUSIC_FILE}")
                 self._music_task = asyncio.create_task(self.play_music_task(filepath))
-            else:
-                self.logger.bind(tag=TAG).warning(f"[MUSIC] Không tìm thấy file nhạc: {filepath}")
-                return False, f"⚠️ Không tìm thấy file nhạc ru bé `{CRADLE_MUSIC_FILE}`.\nHãy chép file vào thư mục `server/data/music/`."
+            else: return False, "⚠️ Không tìm thấy file nhạc ru bé."
 
         elif command == "phat_nhac":
-            # Phát nhạc thủ công → chọn ngẫu nhiên trong thư mục
             self._is_playing_music = False
             playlist = [f for f in os.listdir(music_dir) if f.lower().endswith(('.mp3', '.wav'))]
             if playlist:
                 import random
                 media_file = random.choice(playlist)
                 filepath = os.path.join(music_dir, media_file)
-                self.logger.bind(tag=TAG).info(f"[MUSIC] Kích hoạt stream nhạc background... Chọn bài: {media_file}")
                 self._music_task = asyncio.create_task(self.play_music_task(filepath))
-            else:
-                self.logger.bind(tag=TAG).warning(f"[MUSIC] Thư mục trống: {music_dir}")
-                return False, f"⚠️ Mới nhận lệnh Phát nhạc nhưng mục tải bị trống!\nBạn nhớ chép các file bài hát (đuôi .mp3 hoặc .wav) vào thư mục `server/data/music/` nhé."
+            else: return False, "⚠️ Thư mục nhạc trống!"
 
         if command in ("tat_noi", "dung"):
-            if self._is_playing_music:
-                self.logger.bind(tag=TAG).info("[MUSIC] Lệnh 'Dừng' -> Ngắt luồng nhạc!")
-                self._is_playing_music = False
+            self._is_playing_music = False
 
-        # Log: Server → ESP JSON payload
-        DashboardUpdater.add_system_log(
-            from_node="Server",
-            to_node="ESP",
-            data={"cmd": command, "payload": esp32_payload}
-        )
+        DashboardUpdater.add_system_log("Server", "ESP", {"cmd": command, "payload": esp32_payload})
 
         if not self.connections:
-            msg = (
-                f"⚙️ Lệnh `{label}` đã được ghi nhận.\n"
-                "_Thiết bị ESP32 chưa kết nối WebSocket — lệnh sẽ được hàng đợi._"
-            )
-            self.logger.bind(tag=TAG).warning(
-                f"[COMMAND] Không có ESP32 kết nối. Lệnh '{command}' chờ hàng đợi."
-            )
-            return False, msg
+            self.logger.bind(tag=TAG).warning(f"[COMMAND] Không có ESP32 kết nối cho lệnh '{command}'")
+            return False, "⚠️ Thiết bị ESP32 chưa kết nối."
 
+        # Pre-emption cho các lệnh chụp ảnh
+        is_capture_cmd = command in ["capture_hq", "capture_pose", "check_baby_pose"]
+        if is_capture_cmd:
+            from core.http_server import SimpleHttpServer
+            if SimpleHttpServer._instance:
+                SimpleHttpServer._instance.drop_all_streams()
+                await asyncio.sleep(0.3)
+        
         sent_count = 0
-        for ws in list(self.connections):
+        for conn in list(self.connections):
+            if is_capture_cmd and conn.metadata.get("role") != "camera":
+                continue
             try:
-                await ws.send(json.dumps(esp32_payload))
+                await conn.send_message(esp32_payload)
                 sent_count += 1
             except Exception as e:
-                self.logger.bind(tag=TAG).error(
-                    f"[COMMAND] Lỗi gửi WebSocket: {e}"
-                )
-                self.connections.remove(ws)
+                self.logger.bind(tag=TAG).error(f"Lỗi gửi lệnh {command} đến {conn.device_id}: {e}")
+                if conn in self.connections: self.connections.remove(conn)
 
         if sent_count > 0:
-            msg = f"✅ Lệnh `{label}` đã gửi xuống *{sent_count}* thiết bị ESP32 thành công!"
-            self.logger.bind(tag=TAG).info(
-                f"[COMMAND] Đã gửi '{command}' đến {sent_count} thiết bị."
-            )
+            msg = f"✅ Lệnh `{label}` đã gửi thành công ({sent_count} thiết bị)."
+            self.logger.bind(tag=TAG).info(f"[COMMAND] Đã gửi '{command}' đến {sent_count} thiết bị.")
             return True, msg
-        else:
-            msg = f"❌ Không thể gửi lệnh `{label}` (kết nối bị mất)."
-            return False, msg
+        
+        return False, f"❌ Không tìm thấy thiết bị phù hợp để nhận lệnh `{label}`."

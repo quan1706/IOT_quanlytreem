@@ -20,6 +20,7 @@ _CMD_MAP = {
     "fan":       "bat_quat",
     "stop_all":  "dung",
     "check_pose": "capture_pose",
+    "capture_hq": "capture_hq",
 }
 
 # Number of chart data points per range
