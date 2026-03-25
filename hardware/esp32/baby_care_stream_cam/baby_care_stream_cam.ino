@@ -16,7 +16,7 @@ const char* password = "123456789";
 
 // --- CẤU HÌNH SERVER ---
 // Thay đổi IP này thành IP của máy chạy Python Server
-const char* server_url = "http://172.20.10.3:8003/api/vision/frame";
+const char* server_url = "http://172.20.10.11:8003/api/vision/frame";
 
 // --- CẤU HÌNH CAMERA (AI-THINKER PINOUT) ---
 #define PWDN_GPIO_NUM     32
@@ -109,7 +109,7 @@ void loop() {
 
 // --- Gửi ảnh lên Server (Manual Multipart POST với WiFiClient) ---
   WiFiClient client;
-  if (!client.connect("172.20.10.3", 8003)) {
+  if (!client.connect("172.20.10.11", 8003)) {
     Serial.println("Connection to server failed");
     esp_camera_fb_return( fb );
     return;
@@ -121,7 +121,7 @@ void loop() {
   uint32_t totalLen = head.length() + fb->len + tail.length();
 
   client.println("POST /api/vision/frame HTTP/1.1");
-  client.println("Host: 172.20.10.3");
+  client.println("Host: 172.20.10.11");
   client.println("Content-Type: multipart/form-data; boundary=" + boundary);
   client.print("Content-Length: ");
   client.println(totalLen);

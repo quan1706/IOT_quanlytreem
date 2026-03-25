@@ -135,9 +135,9 @@ class SimpleHttpServer:
             log_msg = f"Phát hiện bé khóc (Camera | device={device_id} | rms={rms_level})"
             DashboardUpdater.add_cry_event(log_msg)
             DashboardUpdater.add_system_log(
-                name="ESP32-CAM",
-                action="cry_detected",
-                data={"device": device_id, "rms": rms_level, "ts": timestamp or time_str}
+                from_node="ESPCAM",
+                to_node="Server",
+                data={"event": "cry_detected", "device": device_id, "rms": rms_level}
             )
 
             # ── Caption theo đúng format giao diện Telegram ──────────────
@@ -170,6 +170,17 @@ class SimpleHttpServer:
             if image_field:
                 image_bytes = image_field.file.read()
                 asyncio.create_task(self._broadcast_frame(image_bytes))
+            return web.json_response({"success": True})
+        except Exception:
+            return web.json_response({"success": False}, status=500)
+
+    async def _handle_vision_log(self, request):
+        """Handler cho log gửi từ ESP32-CAM."""
+        from core.serverToClients import DashboardUpdater
+        try:
+            data = await request.json()
+            msg = data.get("msg", "No message")
+            DashboardUpdater.add_system_log("ESPCAM", "Server", msg)
             return web.json_response({"success": True})
         except Exception:
             return web.json_response({"success": False}, status=500)
@@ -224,6 +235,7 @@ class SimpleHttpServer:
                         ),
                         web.get("/", self.dashboard_handler.handle_get_index),
                         web.get("/api/dashboard/state", self.dashboard_handler.handle_get_state),
+                        web.get("/api/dashboard/logs", self.dashboard_handler.handle_get_logs),
                         web.get("/api/dashboard/sensors", self.dashboard_handler.handle_get_sensors),
                         web.get("/api/dashboard/chart", self.dashboard_handler.handle_get_chart),
                         web.post("/api/dashboard/mode", self.dashboard_handler.handle_post_mode),
@@ -236,6 +248,7 @@ class SimpleHttpServer:
                         web.post("/api/vision/frame", self._handle_frame),
                         web.get("/api/vision/stream", self.handle_stream),
                         web.post("/api/vision/pose", self.pose_handler.handle_post),
+                        web.post("/api/vision/log", self._handle_vision_log),
                     ]
                 )
 

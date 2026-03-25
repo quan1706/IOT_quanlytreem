@@ -371,7 +371,7 @@ class TelegramRouter:
             # Fallback
             response_text = f"{prefix}\n\n⚙️ STATUS: {state['mode']}"
 
-        DashboardUpdater.add_system_log("Command", "/status", {"mode": state["mode"]})
+        DashboardUpdater.add_system_log("Tele", "Server", {"cmd": "/status", "mode": state["mode"]})
         await self.client.send_message(chat_id, response_text)
 
     async def _cmd_mode(self, chat_id, text: str):
@@ -407,7 +407,7 @@ class TelegramRouter:
             success = self.dashboard_handler.update_api_key(new_key)
             if success:
                 msg = self.msg_config.get("commands", {}).get("setkey_success", {}).get("text", "✅ OK")
-                DashboardUpdater.add_system_log("Command", "/setkey", {"result": "ok"})
+                DashboardUpdater.add_system_log("Tele", "Server", {"cmd": "/setkey", "result": "ok"})
             else:
                 msg = self.msg_config.get("commands", {}).get("setkey_fail", {}).get("text", "❌ Fail")
         else:
@@ -617,6 +617,7 @@ class TelegramRouter:
         self.logger.bind(tag=TAG).info(
             f"[AI] Nhận message: '{clean_text}' | Key: {'OK' if actual_key else 'TRỐNG'}"
         )
+        DashboardUpdater.add_system_log("Tele", "Server", {"text": clean_text})
 
         if not actual_key:
             await self.client.send_message(
@@ -712,7 +713,7 @@ class TelegramRouter:
             history.append({"role": "assistant", "content": response_text})
             self.conversation_history[str(chat_id)] = history[-10:]
 
-            DashboardUpdater.add_system_log("Chat", "conversation", {"q": clean_text[:40]})
+            DashboardUpdater.add_system_log("Tele", "Server", {"q": clean_text[:40]})
             self.logger.bind(tag=TAG).info(f"Fallback response len {len(response_text)}")
             if len(response_text.strip()) > 0:
                 await self.client.send_message(chat_id, response_text, reply_markup=get_unified_inline_menu())

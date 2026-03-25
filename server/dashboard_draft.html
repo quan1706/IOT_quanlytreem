@@ -214,60 +214,101 @@
 
             <!-- Top Row: Chat + Stream -->
             <div class="flex-1 flex flex-col md:flex-row gap-4 md:gap-6 min-h-0 overflow-hidden">
-                
-                <!-- Chat History - Left column (Fixed width matching Sidebar) -->
-                <div class="w-full md:w-[380px] bg-white rounded-[1.5rem] md:rounded-[2rem] p-4 md:p-6 overflow-y-auto card-shadow flex flex-col gap-4 chat-display shrink-0" id="chat-container">
-                    <div class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center mb-2 py-1 border-b border-gray-50">Lịch sử hội thoại & AI Logs</div>
-                    
-                    <div class="flex items-start gap-3 chat-bubble self-start">
-                        <div class="w-8 h-8 rounded-xl bg-white border-2 border-brand-dominant shadow-sm flex justify-center items-center shrink-0">
-                            <i class="fa-solid fa-robot text-brand-secondary text-sm"></i>
+
+                <!-- Chat & Logs - Left column -->
+                <div class="w-full md:w-[380px] bg-white rounded-[1.5rem] md:rounded-[2rem] p-4 md:p-6 card-shadow flex flex-col gap-4 chat-display shrink-0 overflow-hidden">
+                    <!-- Tab Switcher -->
+                    <div class="flex items-center bg-brand-dominant p-1 rounded-2xl shrink-0">
+                        <button onclick="switchTab('chat')" id="tab-chat-btn" class="flex-1 py-1.5 md:py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all bg-white text-brand-secondary shadow-sm">
+                            <i class="fa-solid fa-comments mr-1"></i> Trò chuyện
+                        </button>
+                        <button onclick="switchTab('logs')" id="tab-logs-btn" class="flex-1 py-1.5 md:py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all text-gray-500 hover:text-brand-secondary">
+                            <i class="fa-solid fa-list-ul mr-1"></i> Nhật ký
+                        </button>
+                    </div>
+
+                    <!-- Chat View -->
+                    <div id="view-chat" class="flex-1 flex flex-col gap-4 overflow-y-auto pr-1">
+                        <div class="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] text-center mb-1 py-1 border-b border-gray-50">Lịch sử hội thoại & AI Logs</div>
+                        
+                        <div class="flex items-start gap-3 chat-bubble self-start">
+                            <div class="w-8 h-8 rounded-xl bg-white border-2 border-brand-dominant shadow-sm flex justify-center items-center shrink-0">
+                                <i class="fa-solid fa-robot text-brand-secondary text-sm"></i>
+                            </div>
+                            <div class="chat-ai rounded-2xl md:rounded-3xl rounded-tl-none px-4 md:px-6 py-3 shadow-sm text-sm border-2 border-brand-dominant relative">
+                                <p class="font-black text-brand-secondary mb-0.5 text-[9px] uppercase tracking-wider">Tiểu Bảo AI</p>
+                                <p class="text-gray-700 leading-relaxed font-medium">Xin chào! Hệ thống đã sẵn sàng. Bạn có thể nhấn vào biểu đồ để lấy phân tích dữ liệu.</p>
+                                <span class="absolute -left-2 top-2 w-4 h-4 bg-white border-l-2 border-t-2 border-brand-dominant rotate-[-45deg]"></span>
+                            </div>
                         </div>
-                        <div class="chat-ai rounded-2xl md:rounded-3xl rounded-tl-none px-4 md:px-6 py-3 shadow-sm text-sm border-2 border-brand-dominant relative">
-                            <p class="font-black text-brand-secondary mb-0.5 text-[9px] uppercase tracking-wider">Tiểu Bảo AI</p>
-                            <p class="text-gray-700 leading-relaxed font-medium">Xin chào! Hệ thống đã sẵn sàng. Bạn có thể nhấn vào biểu đồ để lấy phân tích dữ liệu.</p>
-                            <span class="absolute -left-2 top-2 w-4 h-4 bg-white border-l-2 border-t-2 border-brand-dominant rotate-[-45deg]"></span>
+                    </div>
+
+                    <!-- Logs View (Hidden by default) -->
+                    <div id="view-logs" class="flex-1 hidden overflow-y-auto pr-1">
+                        <!-- Log Filter Bar -->
+                        <div class="flex items-center gap-1 mb-3 sticky top-0 bg-white py-1 z-10">
+                            <button onclick="setLogFilter('all')" id="filter-all" class="px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-wider bg-brand-secondary text-white shadow-sm">All</button>
+                            <button onclick="setLogFilter('AI')" id="filter-AI" class="px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 hover:bg-gray-200">AI</button>
+                            <button onclick="setLogFilter('ESP32')" id="filter-ESP32" class="px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 hover:bg-gray-200">Hardware</button>
+                            <button onclick="setLogFilter('Sensor')" id="filter-Sensor" class="px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 hover:bg-gray-200">Sensors</button>
                         </div>
+                        <div id="logs-list" class="flex flex-col gap-0.5"></div>
                     </div>
                 </div>
 
                 <!-- Live Stream - Middle column (Flexible) -->
-                <div class="flex-1 bg-black rounded-[1.5rem] md:rounded-[2rem] overflow-hidden shadow-2xl relative group aspect-video md:aspect-auto card-shadow ring-4 ring-white" id="stream-box">
+                <div class="flex-1 bg-black rounded-[1.5rem] md:rounded-[2rem] overflow-hidden shadow-2xl relative group aspect-video md:aspect-auto card-shadow ring-4 ring-white"
+                    id="stream-box">
                     <!-- Stream Image (hidden by default) -->
-                    <img id="baby-stream" src="" class="w-full h-full object-cover hidden" alt="Baby Stream" onload="onStreamLoad()">
-                    
+                    <img id="baby-stream" src="" class="w-full h-full object-cover hidden" alt="Baby Stream"
+                        onload="onStreamLoad()">
+
                     <!-- Loading Spinner (shown while connecting) -->
-                    <div id="stream-loading" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 hidden">
+                    <div id="stream-loading"
+                        class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 hidden">
                         <i class="fa-solid fa-circle-notch fa-spin text-brand-secondary text-3xl mb-3"></i>
                         <p class="text-white/40 text-[9px] font-black uppercase tracking-[0.3em]">Connecting Feed...</p>
                     </div>
 
                     <!-- Placeholder UI (shown when stream is off) -->
-                    <div id="stream-placeholder" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 group-hover:bg-gray-800 transition-colors">
-                        <div class="w-16 h-16 rounded-full bg-brand-secondary/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <div id="stream-placeholder"
+                        class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 group-hover:bg-gray-800 transition-colors">
+                        <div
+                            class="w-16 h-16 rounded-full bg-brand-secondary/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                             <i class="fa-solid fa-play text-brand-secondary text-2xl ml-1"></i>
                         </div>
-                        <p class="text-white/60 text-[10px] font-black uppercase tracking-widest mb-4">Stream đang tạm dừng</p>
-                        <button onclick="toggleStream(true)" class="px-6 py-2 bg-brand-secondary text-white rounded-full text-[10px] font-black uppercase tracking-wider hover:bg-brand-accent transition-all shadow-lg active:scale-95">Xem Video</button>
+                        <p class="text-white/60 text-[10px] font-black uppercase tracking-widest mb-4">Stream đang tạm
+                            dừng</p>
+                        <button onclick="toggleStream(true)"
+                            class="px-6 py-2 bg-brand-secondary text-white rounded-full text-[10px] font-black uppercase tracking-wider hover:bg-brand-accent transition-all shadow-lg active:scale-95">Xem
+                            Video</button>
                     </div>
 
                     <!-- Stream Stats/Controls (shown when stream is on) -->
-                    <div id="stream-overlay" class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4 md:p-6 pointer-events-none opacity-0 transition-opacity">
+                    <div id="stream-overlay"
+                        class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4 md:p-6 pointer-events-none opacity-0 transition-opacity">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-2 md:gap-3">
-                                <div class="w-2 h-2 md:w-3 md:h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_12px_#ef4444]"></div>
-                                <span class="text-white text-[10px] md:text-xs font-black uppercase tracking-widest">Live Feed</span>
+                                <div
+                                    class="w-2 h-2 md:w-3 md:h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_12px_#ef4444]">
+                                </div>
+                                <span
+                                    class="text-white text-[10px] md:text-xs font-black uppercase tracking-widest">Live
+                                    Feed</span>
                             </div>
-                            <div class="text-white/60 text-[8px] md:text-[10px] font-mono">Real-time Relay | ESP32-CAM</div>
+                            <div class="text-white/60 text-[8px] md:text-[10px] font-mono">Real-time Relay | ESP32-CAM
+                            </div>
                         </div>
                     </div>
 
-                    <div id="stream-badge" class="absolute top-4 left-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 opacity-0 transition-opacity">
+                    <div id="stream-badge"
+                        class="absolute top-4 left-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 opacity-0 transition-opacity">
                         <i class="fa-solid fa-camera text-white/80 text-[10px]"></i>
                         <span class="text-white/90 text-[10px] font-medium uppercase tracking-tighter">Monitoring</span>
                     </div>
 
-                    <button id="btn-stop-stream" onclick="toggleStream(false)" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/80 hover:bg-red-500 hover:text-white transition-all opacity-0 pointer-events-auto">
+                    <button id="btn-stop-stream" onclick="toggleStream(false)"
+                        class="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/80 hover:bg-red-500 hover:text-white transition-all opacity-0 pointer-events-auto">
                         <i class="fa-solid fa-xmark text-xs"></i>
                     </button>
                 </div>
@@ -324,84 +365,125 @@
         </div>
 
         <!-- RIGHT-SIDE COLUMN (SIDEBAR) -->
-        <div id="column-sidebar" class="w-full md:w-[380px] flex flex-col gap-4 md:gap-6 shrink-0 h-full order-1 md:order-2">
-            
+        <div id="column-sidebar"
+            class="w-full md:w-[380px] flex flex-col gap-4 md:gap-6 shrink-0 h-full order-1 md:order-2">
+
             <!-- STATISTICS: Statistics (Top) -->
-            <div id="box-stats" class="bg-white rounded-[1.5rem] md:rounded-[2rem] flex flex-col h-[400px] md:h-[50%] card-shadow overflow-hidden border-2 border-brand-secondary/5">
+            <div id="box-stats"
+                class="bg-white rounded-[1.5rem] md:rounded-[2rem] flex flex-col h-[400px] md:h-[50%] card-shadow overflow-hidden border-2 border-brand-secondary/5">
                 <div class="px-5 py-3 flex items-center justify-between border-b border-gray-50 shrink-0">
                     <h2 class="text-[9px] font-black text-gray-800 uppercase tracking-[0.2em] flex items-center gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full bg-brand-secondary animate-pulse shadow-[0_0_8px_#ff4b32]"></div>
+                        <div class="w-1.5 h-1.5 rounded-full bg-brand-secondary animate-pulse shadow-[0_0_8px_#ff4b32]">
+                        </div>
                         Vùng xem dữ liệu
                     </h2>
                     <div class="flex gap-1 bg-brand-dominant p-1 rounded-lg">
-                        <button onclick="switchRange('1h')" id="time-1h" class="text-[8px] font-bold px-2 py-1 text-gray-500 hover:text-brand-secondary transition-all uppercase">1h</button>
-                        <button onclick="switchRange('5h')" id="time-5h" class="text-[8px] font-bold px-2 py-1 text-gray-500 hover:text-brand-secondary transition-all uppercase">5h</button>
-                        <button onclick="switchRange('24h')" id="time-24h" class="text-[8px] font-bold px-2 py-1 bg-brand-secondary text-white rounded-md shadow-lg shadow-brand-secondary/20 uppercase">24h</button>
+                        <button onclick="switchRange('1h')" id="time-1h"
+                            class="text-[8px] font-bold px-2 py-1 text-gray-500 hover:text-brand-secondary transition-all uppercase">1h</button>
+                        <button onclick="switchRange('5h')" id="time-5h"
+                            class="text-[8px] font-bold px-2 py-1 text-gray-500 hover:text-brand-secondary transition-all uppercase">5h</button>
+                        <button onclick="switchRange('24h')" id="time-24h"
+                            class="text-[8px] font-bold px-2 py-1 bg-brand-secondary text-white rounded-md shadow-lg shadow-brand-secondary/20 uppercase">24h</button>
                     </div>
                 </div>
-                
+
                 <div class="flex items-center gap-4 px-6 py-2 bg-brand-dominant/50 border-b border-gray-50 shrink-0">
-                    <button onclick="switchChart('master')" id="type-master" class="text-[8px] font-black text-brand-secondary border-b-2 border-brand-secondary pb-1 uppercase">Tổng hợp</button>
-                    <button onclick="switchChart('temp')" id="type-temp" class="text-[8px] font-black text-gray-400 hover:text-brand-secondary border-b-2 border-transparent pb-1 uppercase">Nhiệt độ</button>
-                    <button onclick="switchChart('hum')" id="type-hum" class="text-[8px] font-black text-gray-400 hover:text-brand-secondary border-b-2 border-transparent pb-1 uppercase">Độ ẩm</button>
+                    <button onclick="switchChart('master')" id="type-master"
+                        class="text-[8px] font-black text-brand-secondary border-b-2 border-brand-secondary pb-1 uppercase">Tổng
+                        hợp</button>
+                    <button onclick="switchChart('temp')" id="type-temp"
+                        class="text-[8px] font-black text-gray-400 hover:text-brand-secondary border-b-2 border-transparent pb-1 uppercase">Nhiệt
+                        độ</button>
+                    <button onclick="switchChart('hum')" id="type-hum"
+                        class="text-[8px] font-black text-gray-400 hover:text-brand-secondary border-b-2 border-transparent pb-1 uppercase">Độ
+                        ẩm</button>
                 </div>
 
                 <div class="flex-1 p-4 flex flex-col relative overflow-hidden" onclick="triggerAnalysis()">
                     <div class="flex-1 min-h-0 relative"><canvas id="babyChart"></canvas></div>
-                    <div class="mt-2 text-center text-[8px] text-gray-400 font-black uppercase tracking-widest flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-hand-pointer animate-bounce text-brand-secondary"></i> Nhấn vào chart để lấy nhận xét từ AI
+                    <div
+                        class="mt-2 text-center text-[8px] text-gray-400 font-black uppercase tracking-widest flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-hand-pointer animate-bounce text-brand-secondary"></i> Nhấn vào chart để
+                        lấy nhận xét từ AI
                     </div>
                 </div>
-                <div class="px-6 py-2 bg-brand-dominant text-center text-[8px] font-bold text-gray-400 uppercase tracking-widest border-t border-gray-50 shrink-0">Sơ đồ cường độ & môi trường</div>
+                <div
+                    class="px-6 py-2 bg-brand-dominant text-center text-[8px] font-bold text-gray-400 uppercase tracking-widest border-t border-gray-50 shrink-0">
+                    Sơ đồ cường độ & môi trường</div>
             </div>
 
             <!-- YELLOW BOX: Status Summary (Bottom) -->
-            <div class="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-8 card-shadow border-4 border-[#fffae6] flex-1 flex flex-col gap-4 md:gap-6 relative overflow-hidden min-h-[300px] md:min-h-0">
-                <div class="absolute top-0 left-0 right-0 h-3 bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-30 shadow-sm"></div>
+            <div
+                class="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-8 card-shadow border-4 border-[#fffae6] flex-1 flex flex-col gap-4 md:gap-6 relative overflow-hidden min-h-[300px] md:min-h-0">
+                <div
+                    class="absolute top-0 left-0 right-0 h-3 bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-30 shadow-sm">
+                </div>
                 <div class="flex items-center justify-between z-10 shrink-0">
-                    <h3 class="text-[10px] md:text-xs font-black text-amber-900/40 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <h3
+                        class="text-[10px] md:text-xs font-black text-amber-900/40 uppercase tracking-[0.2em] flex items-center gap-2">
                         <i class="fa-solid fa-shield-heart text-amber-500"></i> Status Summary
                     </h3>
                     <div class="flex gap-1 items-center z-10">
-                        <button onclick="triggerAnalysis(true)" class="w-8 h-8 rounded-lg bg-brand-secondary/5 border border-brand-secondary/10 flex items-center justify-center text-brand-secondary shadow-sm hover:bg-brand-secondary/10 transition-all" title="Expert AI Report"><i class="fa-solid fa-brain text-xs"></i></button>
-                        <button onclick="toggleMock(this)" class="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm"><i class="fa-solid fa-vial text-xs"></i></button>
+                        <button onclick="triggerAnalysis(true)"
+                            class="w-8 h-8 rounded-lg bg-brand-secondary/5 border border-brand-secondary/10 flex items-center justify-center text-brand-secondary shadow-sm hover:bg-brand-secondary/10 transition-all"
+                            title="Expert AI Report"><i class="fa-solid fa-brain text-xs"></i></button>
+                        <button onclick="toggleMock(this)"
+                            class="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm"><i
+                                class="fa-solid fa-vial text-xs"></i></button>
                     </div>
                 </div>
 
                 <div class="flex-1 flex flex-col justify-around gap-4 z-10">
                     <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-[#fffae6]/70 p-4 rounded-3xl border border-amber-200/50 flex flex-col gap-1 shadow-inner">
+                        <div
+                            class="bg-[#fffae6]/70 p-4 rounded-3xl border border-amber-200/50 flex flex-col gap-1 shadow-inner">
                             <span class="text-[9px] font-black text-amber-700/60 uppercase tracking-widest">Nhiệt độ</span>
                             <div class="flex items-baseline gap-1">
-                                <span class="text-xl md:text-2xl font-black text-amber-900 tracking-tighter" id="stat-temp">28.5</span>
+                                <span class="text-xl md:text-2xl font-black text-amber-900 tracking-tighter"
+                                    id="stat-temp">28.5</span>
                                 <span class="text-[10px] font-bold text-amber-600">°C</span>
                             </div>
                         </div>
-                        <div class="bg-blue-50/50 p-4 rounded-3xl border border-blue-100 flex flex-col gap-1 shadow-inner">
+                        <div
+                            class="bg-blue-50/50 p-4 rounded-3xl border border-blue-100 flex flex-col gap-1 shadow-inner">
                             <span class="text-[9px] font-black text-blue-700/60 uppercase tracking-widest">Độ ẩm</span>
                             <div class="flex items-baseline gap-1">
-                                <span class="text-xl md:text-2xl font-black text-blue-900 tracking-tighter" id="stat-hum">65</span>
+                                <span class="text-xl md:text-2xl font-black text-blue-900 tracking-tighter"
+                                    id="stat-hum">65</span>
                                 <span class="text-[10px] font-bold text-blue-600">%</span>
                             </div>
                         </div>
                     </div>
 
                     <div class="flex flex-col gap-2 md:gap-3">
-                        <div class="flex items-center justify-between bg-brand-dominant p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm">
-                            <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-microphone-lines text-brand-secondary text-xs"></i> Đang khóc:</span>
-                            <span class="text-[9px] font-black px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" id="stat-cry">NO</span>
+                        <div
+                            class="flex items-center justify-between bg-brand-dominant p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm">
+                            <span
+                                class="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><i
+                                    class="fa-solid fa-microphone-lines text-brand-secondary text-xs"></i> Đang
+                                khóc:</span>
+                            <span
+                                class="text-[9px] font-black px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                                id="stat-cry">NO</span>
                         </div>
-                        <div class="flex items-center justify-between bg-brand-dominant p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm">
-                            <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-child text-brand-accent text-xs"></i> Tư thế:</span>
-                            <span class="text-[9px] font-black px-3 py-1 rounded-lg bg-brand-secondary/10 text-brand-secondary border border-brand-secondary/20" id="stat-pose">SUPINE</span>
+                        <div
+                            class="flex items-center justify-between bg-brand-dominant p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm">
+                            <span
+                                class="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><i
+                                    class="fa-solid fa-child text-brand-accent text-xs"></i> Tư thế:</span>
+                            <span
+                                class="text-[9px] font-black px-3 py-1 rounded-lg bg-brand-secondary/10 text-brand-secondary border border-brand-secondary/20"
+                                id="stat-pose">SUPINE</span>
                         </div>
                     </div>
                 </div>
-                <div class="text-[8px] font-black text-center text-amber-700/20 uppercase tracking-[0.4em] mt-auto shrink-0">Live Monitoring System</div>
+                <div
+                    class="text-[8px] font-black text-center text-amber-700/20 uppercase tracking-[0.4em] mt-auto shrink-0">
+                    Live Monitoring System</div>
             </div>
         </div>
 
-        </div>
+    </div>
     </div>
 
     <script>
@@ -623,7 +705,7 @@
         }
         function handleEnter(e) { if (e.key === 'Enter') sendChat(); }
 
-        const c = document.getElementById('chat-container');
+        const c = document.getElementById('view-chat');
 
         // ── Inline markdown renderer (no CDN needed) ────────────────────────────
         function renderMd(t) {
@@ -703,20 +785,136 @@
             } catch (e) { /* server not ready */ }
         }
 
+        // ── Tab Management ──────────────────────────────────────────────────
+        function switchTab(tab) {
+            const chatBtn = document.getElementById('tab-chat-btn');
+            const logsBtn = document.getElementById('tab-logs-btn');
+            const chatView = document.getElementById('view-chat');
+            const logsView = document.getElementById('view-logs');
+            if (!chatBtn || !logsBtn || !chatView || !logsView) return;
+
+            if (tab === 'chat') {
+                chatView.classList.remove('hidden');
+                logsView.classList.add('hidden');
+                chatBtn.classList.add('bg-white', 'text-brand-secondary', 'shadow-sm');
+                chatBtn.classList.remove('text-gray-500');
+                logsBtn.classList.remove('bg-white', 'text-brand-secondary', 'shadow-sm');
+                logsBtn.classList.add('text-gray-500');
+            } else {
+                chatView.classList.add('hidden');
+                logsView.classList.remove('hidden');
+                logsBtn.classList.add('bg-white', 'text-brand-secondary', 'shadow-sm');
+                logsBtn.classList.remove('text-gray-500');
+                chatBtn.classList.remove('bg-white', 'text-brand-secondary', 'shadow-sm');
+                chatBtn.classList.add('text-gray-500');
+                fetchLogs(); // Refresh immediately
+            }
+        }
+
+        async function fetchLogs() {
+            try {
+                const response = await fetch('/api/dashboard/logs');
+                const logs = await response.json();
+                renderLogs(logs);
+            } catch (error) {
+                console.error('Fetch logs error:', error);
+            }
+        }
+
+        let currentLogFilter = 'all';
+        function setLogFilter(filter) {
+            currentLogFilter = filter;
+            // Update UI buttons
+            ['all', 'AI', 'ESP32', 'Sensor'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                if (f === filter) {
+                    btn.classList.add('bg-brand-secondary', 'text-white', 'shadow-sm');
+                    btn.classList.remove('bg-gray-100', 'text-gray-500');
+                } else {
+                    btn.classList.remove('bg-brand-secondary', 'text-white', 'shadow-sm');
+                    btn.classList.add('bg-gray-100', 'text-gray-500');
+                }
+            });
+            fetchLogs(); // Re-render
+        }
+
+        function renderLogs(logs) {
+            const container = document.getElementById('view-logs');
+            const list = document.getElementById('logs-list');
+            if (!container || !list) return;
+
+            // Check if user is at the bottom before updating
+            const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
+
+            if (logs.length === 0) {
+                list.innerHTML = '<div class="text-center py-8 text-gray-400 text-[10px] font-bold uppercase">Chưa có nhật ký</div>';
+                return;
+            }
+
+            // Apply filter
+            const filteredLogs = currentLogFilter === 'all' 
+                ? logs 
+                : logs.filter(log => (log.from || "").includes(currentLogFilter) || (log.to || "").includes(currentLogFilter));
+
+            // Render in chronological order (newest at bottom)
+            const html = filteredLogs.map(log => {
+                let colorClass = "text-gray-500";
+                let icon = "fa-info-circle";
+                const from = log.from || "System";
+                const to = log.to || "System";
+
+                if (from.includes("ESP32") || to.includes("ESP32")) { colorClass = "text-blue-500"; icon = "fa-microchip"; }
+                if (from === "AI" || to === "AI") { colorClass = "text-brand-secondary"; icon = "fa-robot"; }
+                if (from === "Sensor") { colorClass = "text-emerald-500"; icon = "fa-chart-line"; }
+                if (from === "Dashboard" || to === "Dashboard") { colorClass = "text-indigo-500"; icon = "fa-desktop"; }
+                if ((log.data || "").toString().toLowerCase().includes("cry")) { colorClass = "text-red-500"; icon = "fa-warning"; }
+
+                return `
+                    <div class="px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-white transition-colors">
+                        <div class="flex items-start gap-2.5">
+                            <i class="fa-solid ${icon} ${colorClass} text-[9px] mt-0.5 shrink-0 opacity-70"></i>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between mb-0.5">
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-[8px] font-black uppercase tracking-tighter text-gray-500">${from}</span>
+                                        <i class="fa-solid fa-arrow-right text-[7px] text-gray-300"></i>
+                                        <span class="text-[8px] font-black uppercase tracking-tighter text-brand-secondary">${to}</span>
+                                    </div>
+                                    <span class="text-[8px] font-mono text-gray-400 font-medium">${log.time}</span>
+                                </div>
+                                <div class="flex items-baseline gap-2">
+                                    <code class="text-[9px] text-gray-600 font-mono break-all line-clamp-2">${log.data}</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            list.innerHTML = html;
+
+            // Auto-scroll logic
+            if (isAtBottom) {
+                container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+            }
+        }
+
         // ── Bootstrap ─────────────────────────────────────────────────────────
-        function clock() { 
+        function clock() {
             const el = document.getElementById('clock');
-            if (el) el.innerText = new Date().toLocaleTimeString('vi-VN', { hour12: false }); 
+            if (el) el.innerText = new Date().toLocaleTimeString('vi-VN', { hour12: false });
         }
         setInterval(clock, 1000); clock();
         setInterval(pollSensors, 5000);
-        
+        // Periodic logs fetch
+        setInterval(fetchLogs, 1000); // 1s refresh for real-time feel
+
         // MJPEG streams can block window.onload, so we init immediately or on DOMContentLoaded
-        init(); 
+        init();
         pollSensors();
         document.addEventListener('DOMContentLoaded', () => {
-             const c = document.getElementById('chat-container');
-             if (c) c.scrollTop = c.scrollHeight;
+            const c = document.getElementById('view-chat');
+            if (c) c.scrollTop = c.scrollHeight;
         });
     </script>
 </body>

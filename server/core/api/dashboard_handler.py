@@ -25,6 +25,10 @@ _CMD_MAP = {
 # Number of chart data points per range
 _RANGE_POINTS = {"1h": 12, "5h": 30, "24h": 48}
 
+# Chat history for Web (giữ 10 tin nhắn gần nhất)
+if "chat_history" not in DASHBOARD_STATE:
+    DASHBOARD_STATE["chat_history"] = []
+
 
 def _build_mock_chart(n: int) -> dict:
     """Tạo dữ liệu mock cho chart với n điểm dữ liệu."""
@@ -136,6 +140,13 @@ class DashboardHandler:
         return web.json_response(DASHBOARD_STATE)
 
     # ──────────────────────────────────────────────────────────────────────────
+    # GET /api/dashboard/logs — system activity logs
+    # ──────────────────────────────────────────────────────────────────────────
+    async def handle_get_logs(self, request):
+        """Trả về danh sách log hệ thống đã lưu trong DASHBOARD_STATE."""
+        return web.json_response(DASHBOARD_STATE.get("system_logs", []))
+
+    # ──────────────────────────────────────────────────────────────────────────
     # GET /api/dashboard/sensors — live sensor snapshot
     # ──────────────────────────────────────────────────────────────────────────
     async def handle_get_sensors(self, request):
@@ -192,9 +203,11 @@ class DashboardHandler:
 
         cmd_key = body.get("cmd", "")
         esp_cmd = _CMD_MAP.get(cmd_key, cmd_key)
+        
+        self.logger.bind(tag=TAG).info(f"DEBUG: Web Request Command: key='{cmd_key}' -> esp_cmd='{esp_cmd}'")
 
         DashboardUpdater.add_action_log(esp_cmd, "dashboard_web", "Đang thực hiện")
-        DashboardUpdater.add_system_log("Dashboard→ESP32", esp_cmd, {"src": "web_button"})
+        DashboardUpdater.add_system_log("Web", "ESP", {"cmd": esp_cmd, "src": "dashboard_button"})
 
         success, msg = await ESP32Commander().execute_command(esp_cmd)
 
@@ -209,6 +222,8 @@ class DashboardHandler:
     # ──────────────────────────────────────────────────────────────────────────
     async def handle_post_chat(self, request):
         from core.serverToClients.dashboard_updater import DashboardUpdater
+        from core.serverToClients.ai_processor import AIProcessor
+        from core.serverToClients.esp32_commander import ESP32Commander
 
         try:
             body = await request.json()
@@ -218,6 +233,11 @@ class DashboardHandler:
         message = body.get("message", "").strip()
         if not message:
             return web.json_response({"success": False, "error": "Empty message"}, status=400)
+
+        # Lấy API Key từ config (ưu tiên Groq cho logic intent giống Tele)
+        groq_key = self.config.get("LLM", {}).get("GroqLLM", {}).get("api_key", "")
+        if not groq_key:
+            groq_key = self.config.get("ASR", {}).get("GroqASR", {}).get("api_key", "")
 
         # Nếu là phân tích chart, dùng đường thống nhất qua AIProcessor (cùng Gemini + prompt)
         if "[CHART_DATA]" in message:
@@ -255,17 +275,73 @@ class DashboardHandler:
             )
 
             reply = await AIProcessor.summarize_baby_condition(self.config, data_summary, days=1)
+
+            DashboardUpdater.add_ai_log(
+                query="[Phân tích biểu đồ]",
+                response=reply,
+                action="chart_analysis",
+                status="confirmed",
+                from_node="Server",
+                to_node="Web"
+            )
+            return web.json_response({"success": True, "reply": reply})
+
+        # ── 2. Trường hợp chat thông thường & Điều khiển (Giống Tele) ─────────
+        # Log tin nhắn người dùng từ Web
+        DashboardUpdater.add_system_log("Web", "Server", {"text": message})
+
+        # Lấy lịch sử chat của Web
+        history = DASHBOARD_STATE.get("chat_history", [])
+
+        # Phân tích Intent bằng Groq (giống logic bên Telegram)
+        ai_result = await AIProcessor.analyze_intent_conversational(message, groq_key, history=history)
+        
+        # Fallback Regex (giống Tele)
+        if not ai_result or not ai_result.get("actions") or "none" in ai_result["actions"]:
+            regex_actions = []
+            msg_lower = message.lower()
+            if any(kw in msg_lower for kw in ["ru nôi", "ru vong", "ru võng", "bật nôi", "đưa võng"]): regex_actions.append("ru_vong")
+            if any(kw in msg_lower for kw in ["tắt nôi", "dừng nôi", "ngừng nôi"]): regex_actions.append("tat_noi")
+            if any(kw in msg_lower for kw in ["bật quạt", "mở quạt"]): regex_actions.append("bat_quat")
+            if any(kw in msg_lower for kw in ["tắt quạt", "dừng quạt"]): regex_actions.append("tat_quat")
+            
+            if regex_actions:
+                ai_result = {"actions": regex_actions, "reply": "Tôi đã nhận ra lệnh của bạn, tôi sẽ thực hiện ngay!"}
+
+        if ai_result:
+            actions = ai_result.get("actions", [])
+            reply = ai_result.get("reply", "Đã rõ, Tiểu Bảo đang thực hiện cho bạn...")
+            
+            # Lưu lịch sử chat
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": reply})
+            DASHBOARD_STATE["chat_history"] = history[-10:]
+
+            if actions:
+                # Thực thi lệnh ngay lập tức (trên Web không cần nút xác nhận như Tele)
+                commander = ESP32Commander()
+                for act in actions:
+                    await commander.execute_command(act)
+                    DashboardUpdater.add_action_log(act, "web_ai", "Thành công")
+                    DashboardUpdater.add_system_log("Server", "ESP", {"cmd": act, "src": "web_ai_intent"})
+                
+                DashboardUpdater.add_ai_log(query=message, response=reply, action=",".join(actions), status="confirmed", from_node="Server", to_node="Web")
+            
+            return web.json_response({"success": True, "reply": reply})
+        
+        # ── 3. Fallback: Chat thông thường nếu không có lệnh ──────────────────
+        # Dùng Groq chat nếu có key, không thì dùng Gemini fallback
+        if groq_key:
+            reply = await AIProcessor.chat_conversational(message, groq_key)
         else:
-            # Chat thông thường: dùng GeminiLLM trực tiếp với persona chuyên gia đầy đủ
             reply = await _call_llm(self.config, message)
 
-        DashboardUpdater.add_ai_log(
-            query="[Phân tích biểu đồ]" if "[CHART_DATA]" in message else message,
-            response=reply,
-            action="chart_analysis" if "[CHART_DATA]" in message else "chat",
-            status="confirmed",
-        )
+        # Lưu lịch sử chat
+        history.append({"role": "user", "content": message})
+        history.append({"role": "assistant", "content": reply})
+        DASHBOARD_STATE["chat_history"] = history[-10:]
 
+        DashboardUpdater.add_ai_log(query=message, response=reply, action="chat", status="confirmed", from_node="Server", to_node="Web")
         return web.json_response({"success": True, "reply": reply})
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -281,7 +357,7 @@ class DashboardHandler:
             DashboardUpdater.set_mock_mode(not current)
             return web.json_response({"success": True, "mock_mode": DASHBOARD_STATE["mock_mode"]})
 
-        DashboardUpdater.add_system_log("Dashboard→Server", "set_mode", data)
+        DashboardUpdater.add_system_log("Web", "Server", {"action": "set_mode", "data": data})
         DashboardUpdater.set_mode(new_mode)
         return web.json_response({"success": True, "mode": DASHBOARD_STATE["mode"]})
 
