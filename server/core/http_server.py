@@ -19,6 +19,7 @@ class SimpleHttpServer:
         self.vision_handler = VisionHandler(config)
         self.dashboard_handler = DashboardHandler(config)
         self.pose_handler = PoseHandler(config)
+        self._visualizers = []  # Danh sách các stream đang kết nối từ Dashboard
 
     def _get_websocket_url(self, local_ip: str, port: int) -> str:
         """Lấy địa chỉ websocket
@@ -37,6 +38,65 @@ class SimpleHttpServer:
             return websocket_config
         else:
             return f"ws://{local_ip}:{port}/xiaozhi/v1/"
+
+    async def handle_stream(self, request):
+        """
+        MJPEG Stream relay cho Dashboard.
+        Dùng kỹ thuật multipart/x-mixed-replace để đẩy ảnh liên tục.
+        """
+        response = web.StreamResponse(
+            status=200,
+            reason='OK',
+            headers={
+                'Content-Type': 'multipart/x-mixed-replace;boundary=frame',
+                'Cache-Control': 'no-cache',
+                'Connection': 'close',
+                'Pragma': 'no-cache'
+            }
+        )
+        await response.prepare(request)
+        
+        # Thêm vào danh sách visualizers
+        self._visualizers.append(response)
+        self.logger.bind(tag=TAG).info(f"Dashboard kết nối Live Stream. Tổng visualizers: {len(self._visualizers)}")
+        
+        try:
+            # Giữ kết nối mở cho đến khi client ngắt
+            while True:
+                await asyncio.sleep(1)
+        except Exception:
+            pass
+        finally:
+            if response in self._visualizers:
+                self._visualizers.remove(response)
+            self.logger.bind(tag=TAG).info(f"Dashboard ngắt Live Stream. Còn lại: {len(self._visualizers)}")
+            return response
+
+    async def _broadcast_frame(self, image_bytes):
+        """Đẩy frame ảnh tới tất cả các Dashboard đang xem."""
+        if not self._visualizers:
+            return
+
+        # Prepare MJPEG frame
+        header = (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n"
+            b"Content-Length: " + str(len(image_bytes)).encode() + b"\r\n\r\n"
+        )
+        footer = b"\r\n"
+        data = header + image_bytes + footer
+
+        # Gửi tới các client (dùng list copy để an toàn khi remove)
+        disconnected = []
+        for resp in self._visualizers:
+            try:
+                await resp.write(data)
+            except Exception:
+                disconnected.append(resp)
+        
+        for d in disconnected:
+            if d in self._visualizers:
+                self._visualizers.remove(d)
 
     async def _handle_cry(self, request):
         """
@@ -57,6 +117,9 @@ class SimpleHttpServer:
             if not image_field:
                 return web.json_response({"success": False, "error": "No image provided"}, status=400)
             image_bytes = image_field.file.read()
+
+            # ── Broadcast tới các Dashboard đang xem (Live Feed) ─────────
+            asyncio.create_task(self._broadcast_frame(image_bytes))
 
             # ── Bóc tách metadata (ESP32-CAM có thể gửi kèm field text) ─
             device_id  = data.get('device_id', 'ESP32-CAM')
@@ -95,6 +158,21 @@ class SimpleHttpServer:
         except Exception as e:
             self.logger.bind(tag=TAG).error(f"Lỗi xử lý /api/cry: {e}")
             return web.json_response({"success": False, "error": str(e)}, status=500)
+
+    async def _handle_frame(self, request):
+        """
+        POST /api/vision/frame — Chỉ nhận frame ảnh (không trigger cảnh báo Telegram).
+        Dành cho stream tốc độ cao hơn.
+        """
+        try:
+            data = await request.post()
+            image_field = data.get('image')
+            if image_field:
+                image_bytes = image_field.file.read()
+                asyncio.create_task(self._broadcast_frame(image_bytes))
+            return web.json_response({"success": True})
+        except Exception:
+            return web.json_response({"success": False}, status=500)
 
     async def _periodic_pose_check(self):
         """Task nền: gửi lệnh check pose mỗi 5 phút một lần cho các thiết bị ESP32."""
@@ -153,8 +231,10 @@ class SimpleHttpServer:
                         web.post("/api/dashboard/chat", self.dashboard_handler.handle_post_chat),
                         web.post("/api/dashboard/apikey", self.dashboard_handler.handle_post_apikey),
                         
-                        # Route Baby Care - gọi thẳng method nội bộ
+                        # Route Baby Care
                         web.post("/api/cry", self._handle_cry),
+                        web.post("/api/vision/frame", self._handle_frame),
+                        web.get("/api/vision/stream", self.handle_stream),
                         web.post("/api/vision/pose", self.pose_handler.handle_post),
                     ]
                 )
