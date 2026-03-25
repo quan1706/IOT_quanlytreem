@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Baby Care Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .markdown-body h1,.markdown-body h2,.markdown-body h3{font-weight:700;margin:.5em 0 .25em;color:#1e293b}
+        .markdown-body h1{font-size:1.1em}.markdown-body h2{font-size:1em}.markdown-body h3{font-size:.95em}
+        .markdown-body strong{font-weight:700;color:#1e293b}
+        .markdown-body ul,.markdown-body ol{padding-left:1.25em;margin:.25em 0}
+        .markdown-body li{margin:.15em 0}
+        .markdown-body p{margin:.35em 0}
+        .markdown-body code{background:#f1f5f9;border-radius:4px;padding:1px 5px;font-size:.85em;font-family:monospace}
+        .markdown-body hr{border:none;border-top:1px solid #e2e8f0;margin:.5em 0}
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            dominant: '#f5f7fd', // 94%
+                            secondary: '#ff4b32', // 6%
+                            accent: '#ee3e80',    // 1%
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { 
+            background-color: #f5f7fd; 
+            color: #2d3748; 
+            min-height: 100vh;
+            display: flex; 
+            flex-direction: column; 
+        }
+        
+        /* Custom scrollbar for better visibility */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .card-shadow { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); border: 1px solid rgba(255, 75, 50, 0.05); }
+
+        .chat-display { min-height: 400px; height: 100%; }
+        @media (max-width: 768px) {
+            .chat-display { min-height: 500px; height: 500px; }
+            body { overflow-y: auto; overflow-x: hidden; }
+        }
+        @media (min-width: 769px) {
+            body { height: 100vh; overflow: hidden; }
+        }
+
+        .chat-bubble { animation: fadeIn 0.3s ease-out forwards; max-width: 85%; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .toggle-checkbox:checked + .toggle-label { background-color: #ff4b32; }
+        .btn-action { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn-action:active { transform: scale(0.96); }
+    </style>
+</head>
+<body class="font-sans antialiased">
+
+    <!-- Header -->
+    <header class="bg-white px-4 md:px-8 py-3 flex items-center justify-between shrink-0 z-20 card-shadow h-16 sticky top-0">
+        <div class="flex items-center gap-3 md:gap-4">
+            <div class="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-brand-secondary flex justify-center items-center shadow-lg shadow-brand-secondary/20">
+                <i class="fa-solid fa-child-reaching text-white text-base md:text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-base md:text-xl font-black text-gray-800 tracking-tight leading-none uppercase">Smart Baby</h1>
+                <p class="hidden md:block text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-widest leading-none">Live Monitoring Control</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-3 md:gap-6">
+            <div id="clock" class="text-brand-secondary font-black text-sm md:text-lg font-mono px-3 md:px-4 py-1 rounded-xl bg-brand-dominant border border-brand-secondary/10">--:--:--</div>
+            <div class="hidden sm:flex items-center gap-3 bg-brand-dominant p-1.5 rounded-xl">
+                <span class="text-[9px] font-black text-gray-500 uppercase ml-2">Auto</span>
+                <div class="relative inline-block w-8 align-middle select-none">
+                    <input type="checkbox" id="mode-toggle-top" class="toggle-checkbox absolute block w-4 h-4 rounded-full bg-white border-2 border-gray-300 appearance-none cursor-pointer z-10 top-0 left-0 transition-all checked:left-4" checked>
+                    <label for="mode-toggle-top" class="toggle-label block overflow-hidden h-4 rounded-full bg-gray-300 cursor-pointer shadow-inner"></label>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Wrapper -->
+    <!-- On desktop: flow in row. On mobile: flow in column. -->
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden p-4 md:p-6 gap-4 md:gap-6 relative">
+        
+        <!-- LEFT-SIDE COLUMN: CHAT & ACTIONS -->
+        <!-- On mobile, this block comes second (order-2) -->
+        <div id="column-chat" class="flex-1 flex flex-col gap-4 md:gap-6 overflow-hidden order-2 md:order-1 h-full min-w-0">
+            
+            <!-- (Main) Chat Display -->
+            <div class="flex-1 bg-white rounded-[1.5rem] md:rounded-[2rem] p-4 md:p-8 overflow-y-auto card-shadow flex flex-col gap-6 chat-display" id="chat-container">
+                <div class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center mb-2 py-1 border-b border-gray-50">Lịch sử hội thoại & AI Logs</div>
+                
+                <div class="flex items-start gap-3 chat-bubble self-start">
+                    <div class="w-8 h-8 rounded-xl bg-white border-2 border-brand-dominant shadow-sm flex justify-center items-center shrink-0">
+                        <i class="fa-solid fa-robot text-brand-secondary text-sm"></i>
+                    </div>
+                    <div class="chat-ai rounded-2xl md:rounded-3xl rounded-tl-none px-4 md:px-6 py-3 shadow-sm text-sm border-2 border-brand-dominant relative">
+                        <p class="font-black text-brand-secondary mb-0.5 text-[9px] uppercase tracking-wider">Tiểu Bảo AI</p>
+                        <p class="text-gray-700 leading-relaxed font-medium">Xin chào! Hệ thống đã sẵn sàng. Bạn có thể nhấn vào biểu đồ để lấy phân tích dữ liệu.</p>
+                        <span class="absolute -left-2 top-2 w-4 h-4 bg-white border-l-2 border-t-2 border-brand-dominant rotate-[-45deg]"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RED BOX: Action & Input Area -->
+            <!-- On mobile comes middle of the middle block, following chat history -->
+            <div class="bg-white rounded-[1.5rem] md:rounded-[2rem] p-4 md:p-6 card-shadow border-4 border-brand-secondary/10 flex flex-col gap-4 shrink-0 relative overflow-hidden">
+                <h3 class="text-[10px] font-black text-brand-secondary flex items-center gap-2 px-1 uppercase tracking-[0.2em]">
+                    <i class="fa-solid fa-gamepad text-brand-accent"></i> Điều khiển & Chat
+                </h3>
+                
+                <!-- Commands Row -->
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="toggleAction('music')" id="btn-music" class="btn-action flex-1 md:flex-none px-3 md:px-5 py-2 rounded-xl bg-brand-dominant border-2 border-transparent text-[10px] font-black text-gray-700 hover:border-brand-secondary/30 transition-all flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
+                        <i class="fa-solid fa-music text-brand-secondary"></i> NHẠC
+                    </button>
+                    <button onclick="toggleAction('swing')" id="btn-swing" class="btn-action flex-1 md:flex-none px-3 md:px-5 py-2 rounded-xl bg-brand-dominant border-2 border-transparent text-[10px] font-black text-gray-700 hover:border-brand-secondary/30 transition-all flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
+                        <i class="fa-solid fa-bed text-blue-500"></i> NÔI
+                    </button>
+                    <button onclick="toggleAction('fan')" id="btn-fan" class="btn-action flex-1 md:flex-none px-3 md:px-5 py-2 rounded-xl bg-brand-dominant border-2 border-transparent text-[10px] font-black text-gray-700 hover:border-brand-secondary/30 transition-all flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
+                        <i class="fa-solid fa-fan text-cyan-500"></i> QUẠT
+                    </button>
+                    <button onclick="checkPose()" class="btn-action w-full md:w-auto px-5 py-2 rounded-xl bg-brand-dominant border-2 border-transparent text-[10px] font-black text-gray-700 hover:border-brand-accent/30 transition-all flex items-center justify-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-camera text-brand-accent"></i> CHECK POSE
+                    </button>
+                    <button onclick="stopAll()" class="btn-action w-full md:w-auto px-6 py-2 rounded-xl bg-brand-secondary text-white text-[10px] font-black flex items-center justify-center gap-2 shadow-md md:ml-auto">
+                        <i class="fa-solid fa-power-off"></i> DỪNG HẾT
+                    </button>
+                </div>
+
+                <!-- Input Row -->
+                <div class="relative group">
+                    <input type="text" id="chat-input" placeholder="Hỏi AI tại đây..." class="w-full bg-brand-dominant rounded-2xl pl-11 pr-14 py-4 text-sm font-medium border-2 border-transparent focus:bg-white focus:border-brand-secondary/20 focus:outline-none transition-all shadow-inner" onkeypress="handleEnter(event)">
+                    <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-secondary"><i class="fa-solid fa-comment-dots"></i></div>
+                    <button onclick="sendChat()" class="absolute right-2 top-2 bottom-2 w-11 rounded-xl bg-brand-secondary text-white flex justify-center items-center hover:bg-brand-accent shadow-lg active:scale-90 transition-all">
+                        <i class="fa-solid fa-paper-plane text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT-SIDE COLUMN (SIDEBAR) -->
+        <div id="column-sidebar" class="w-full md:w-[380px] flex flex-col gap-4 md:gap-6 shrink-0 md:overflow-hidden order-1 md:order-2 h-full">
+            
+            <!-- YELLOW BOX: Status Summary -->
+            <!-- On mobile comes at the TOP (order-1 inside sidebar which is order-1 overall) -->
+            <div class="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-8 card-shadow border-4 border-[#fffae6] order-1 md:order-2 shrink-0 md:flex-1 flex flex-col gap-4 md:gap-6 relative overflow-hidden min-h-[300px] md:min-h-0">
+                <div class="absolute top-0 left-0 right-0 h-3 bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-30 shadow-sm"></div>
+                <div class="flex items-center justify-between z-10">
+                    <h3 class="text-[10px] md:text-xs font-black text-amber-900/40 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <i class="fa-solid fa-shield-heart text-amber-500"></i> Status Summary
+                    </h3>
+                    <div class="flex gap-1 items-center z-10">
+                        <button onclick="triggerAnalysis(true)" class="w-8 h-8 rounded-lg bg-brand-secondary/5 border border-brand-secondary/10 flex items-center justify-center text-brand-secondary shadow-sm hover:bg-brand-secondary/10 transition-all" title="Expert AI Report"><i class="fa-solid fa-brain text-xs"></i></button>
+                        <button onclick="toggleMock(this)" class="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm"><i class="fa-solid fa-vial text-xs"></i></button>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col justify-around gap-4 z-10">
+                    <!-- Numbers row -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-[#fffae6]/70 p-4 rounded-3xl border border-amber-200/50 flex flex-col gap-1 shadow-inner">
+                            <span class="text-[9px] font-black text-amber-700/60 uppercase tracking-widest">Nhiệt độ</span>
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-xl md:text-2xl font-black text-amber-900 tracking-tighter" id="stat-temp">28.5</span>
+                                <span class="text-[10px] font-bold text-amber-600">°C</span>
+                            </div>
+                        </div>
+                        <div class="bg-blue-50/50 p-4 rounded-3xl border border-blue-100 flex flex-col gap-1 shadow-inner">
+                            <span class="text-[9px] font-black text-blue-700/60 uppercase tracking-widest">Độ ẩm</span>
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-xl md:text-2xl font-black text-blue-900 tracking-tighter" id="stat-hum">65</span>
+                                <span class="text-[10px] font-bold text-blue-600">%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Badges row -->
+                    <div class="flex flex-col gap-2 md:gap-3">
+                        <div class="flex items-center justify-between bg-brand-dominant p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm">
+                            <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-microphone-lines text-brand-secondary text-xs"></i> Đang khóc:</span>
+                            <span class="text-[9px] font-black px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" id="stat-cry">NO</span>
+                        </div>
+                        <div class="flex items-center justify-between bg-brand-dominant p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm">
+                            <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-child text-brand-accent text-xs"></i> Tư thế:</span>
+                            <span class="text-[9px] font-black px-3 py-1 rounded-lg bg-brand-secondary/10 text-brand-secondary border border-brand-secondary/20" id="stat-pose">SUPINE</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-[8px] font-black text-center text-amber-700/20 uppercase tracking-[0.4em] mt-auto">Live Monitoring System</div>
+            </div>
+
+            <!-- STATISTICS: Statistics (Top Right on desktop, BOTTOM on mobile) -->
+            <div id="box-stats" class="bg-white rounded-[1.5rem] md:rounded-[2rem] flex flex-col shrink-0 order-3 md:order-1 h-[400px] md:h-[50%] card-shadow overflow-hidden border-2 border-brand-secondary/5">
+                <div class="px-5 py-3 flex items-center justify-between border-b border-gray-50">
+                    <h2 class="text-[9px] font-black text-gray-800 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <div class="w-1.5 h-1.5 rounded-full bg-brand-secondary animate-pulse shadow-[0_0_8px_#ff4b32]"></div>
+                        Vùng xem dữ liệu
+                    </h2>
+                    <div class="flex gap-1 bg-brand-dominant p-1 rounded-lg">
+                        <button onclick="switchRange('1h')" id="time-1h" class="text-[8px] font-bold px-2 py-1 text-gray-500 hover:text-brand-secondary transition-all uppercase">1h</button>
+                        <button onclick="switchRange('5h')" id="time-5h" class="text-[8px] font-bold px-2 py-1 text-gray-500 hover:text-brand-secondary transition-all uppercase">5h</button>
+                        <button onclick="switchRange('24h')" id="time-24h" class="text-[8px] font-bold px-2 py-1 bg-brand-secondary text-white rounded-md shadow-lg shadow-brand-secondary/20 uppercase">24h</button>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-4 px-6 py-2 bg-brand-dominant/50 border-b border-gray-50">
+                    <button onclick="switchChart('master')" id="type-master" class="text-[8px] font-black text-brand-secondary border-b-2 border-brand-secondary pb-1 uppercase">Tổng hợp</button>
+                    <button onclick="switchChart('temp')" id="type-temp" class="text-[8px] font-black text-gray-400 hover:text-brand-secondary border-b-2 border-transparent pb-1 uppercase">Nhiệt độ</button>
+                    <button onclick="switchChart('hum')" id="type-hum" class="text-[8px] font-black text-gray-400 hover:text-brand-secondary border-b-2 border-transparent pb-1 uppercase">Độ ẩm</button>
+                </div>
+
+                <div class="flex-1 p-4 flex flex-col relative overflow-hidden" onclick="triggerAnalysis()">
+                    <div class="flex-1 min-h-0 relative"><canvas id="babyChart"></canvas></div>
+                    <div class="mt-2 text-center text-[8px] text-gray-400 font-black uppercase tracking-widest flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-hand-pointer animate-bounce text-brand-secondary"></i> Nhấn vào chart để lấy nhận xét từ AI
+                    </div>
+                </div>
+                <div class="px-6 py-2 bg-brand-dominant text-center text-[8px] font-bold text-gray-400 uppercase tracking-widest border-t border-gray-50">Sơ đồ cường độ & môi trường</div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Init logic
+        const states = { music: false, swing: false, fan: false };
+        let chart = null;
+        let chartType = 'master';
+        let currentRange = '24h';
+        let currentChartData = null;
+
+        // ── Chart helpers ──────────────────────────────────────────────────────
+        async function fetchChartData(range) {
+            try {
+                const res = await fetch(`/api/dashboard/chart?range=${range}`);
+                return await res.json();
+            } catch(e) { console.error('Lỗi tải chart:', e); return null; }
+        }
+
+        function renderChart(data) {
+            if (!data) return;
+            currentChartData = data;
+            const ctx = document.getElementById('babyChart').getContext('2d');
+            const sets = {
+                master: [
+                    { label: 'Khóc', data: data.cry, borderColor: '#ff4b32', backgroundColor: 'rgba(255, 75, 50, 0.1)', fill: true, tension: 0.4, yAxisID: 'y1' },
+                    { label: 'Nhiệt độ', data: data.temp, borderColor: '#ee3e80', borderDash: [5,5], tension: 0.2, yAxisID: 'y2' },
+                    { label: 'Độ ẩm', data: data.hum, borderColor: '#22d3ee', tension: 0.2, yAxisID: 'y2' }
+                ],
+                temp: [{ label: 'Nhiệt độ', data: data.temp, borderColor: '#ee3e80', backgroundColor: 'rgba(238, 62, 128, 0.1)', fill: true, tension: 0.4 }],
+                hum:  [{ label: 'Độ ẩm',   data: data.hum,  borderColor: '#22d3ee', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4 }]
+            };
+            const config = {
+                type: 'line',
+                data: { labels: data.labels, datasets: sets[chartType] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    interaction: { intersect: false, mode: 'index' },
+                    scales: {
+                        x: { display: true, ticks: { color: '#94a3b8', font: { size: 7 } }, grid: { display: false } },
+                        y1: { position: 'left', display: chartType === 'master', ticks: { color: '#ff4b32', font: { size: 7 } }, grid: { color: '#f1f5f9' } },
+                        y2: { position: 'right', display: true, ticks: { color: '#94a3b8', font: { size: 7 } }, grid: { display: false } }
+                    }
+                }
+            };
+            if(chart) chart.destroy();
+            chart = new Chart(ctx, config);
+        }
+
+        async function init() {
+            const data = await fetchChartData(currentRange);
+            renderChart(data);
+        }
+
+        function switchChart(t) {
+            chartType = t;
+            ['master', 'temp', 'hum'].forEach(id => {
+                const b = document.getElementById(`type-${id}`);
+                b.className = id === t ? "text-[8px] font-black text-brand-secondary border-b-2 border-brand-secondary pb-1 uppercase" : "text-[8px] font-black text-gray-400 hover:text-brand-secondary border-b-2 border-transparent pb-1 uppercase";
+            });
+            renderChart(currentChartData);
+        }
+
+        async function switchRange(r) {
+            currentRange = r;
+            ['1h', '5h', '24h'].forEach(id => {
+                const b = document.getElementById(`time-${id}`);
+                b.className = id === r ? "text-[8px] font-bold px-2 py-1 bg-brand-secondary text-white rounded-md shadow-lg uppercase" : "text-[8px] font-bold px-2 py-1 text-gray-500 hover:text-white transition-all uppercase";
+            });
+            const data = await fetchChartData(r);
+            renderChart(data);
+        }
+
+        // ── AI analysis trigger ────────────────────────────────────────────────
+        async function triggerAnalysis(isExplicit = false) {
+            if (isExplicit) {
+                postUser('Yêu cầu Tiểu Bảo phân tích chuyên sâu sức khỏe và môi trường của bé!');
+            }
+            
+            let temp = document.getElementById('stat-temp').textContent;
+            let hum = document.getElementById('stat-hum').textContent;
+            const cry = document.getElementById('stat-cry').textContent;
+            const pose = document.getElementById('stat-pose').textContent;
+            
+            // Fallback if UI is not yet updated
+            if (temp === '--' && currentChartData && currentChartData.temp.length > 0) {
+                temp = currentChartData.temp[currentChartData.temp.length - 1];
+            }
+            if (hum === '--' && currentChartData && currentChartData.hum.length > 0) {
+                hum = currentChartData.hum[currentChartData.hum.length - 1];
+            }
+
+            let dataCtx = `[CHART_DATA] Hiện trạng: Nhiệt độ ${temp}°C, Độ ẩm ${hum}%, Bé ${cry === 'YES' ? 'đang KHÓC' : 'đang ổn định'}, Tư thế ${pose}.`;
+            
+            if (currentChartData) {
+                const last10T = currentChartData.temp.slice(-10).join(', ');
+                const last10H = currentChartData.hum.slice(-10).join(', ');
+                const avgT = (currentChartData.temp.reduce((a,b)=>a+b,0)/currentChartData.temp.length).toFixed(1);
+                const avgH = (currentChartData.hum.reduce((a,b)=>a+b,0)/currentChartData.hum.length).toFixed(0);
+                
+                dataCtx += `\n- Xu hướng Nhiệt độ (10 điểm cuối): [${last10T}] (TB ${currentRange}: ${avgT}°C)`;
+                dataCtx += `\n- Xu hướng Độ ẩm (10 điểm cuối): [${last10H}] (TB ${currentRange}: ${avgH}%)`;
+            }
+
+            if (!isExplicit) {
+                postAI('<i class="fa-solid fa-magnifying-glass-chart fa-beat-slow mr-1"></i> Đang phân tích xu hướng và lập báo cáo...');
+            } else {
+                postAI('<i class="fa-solid fa-spinner fa-spin text-xs mr-1"></i> Chuyên gia Tiểu Bảo đang tổng hợp dữ liệu...');
+            }
+
+            const reply = await callChat(dataCtx);
+            
+            // Remove loading bubble
+            const lastBubble = c.querySelector('.chat-bubble:last-child');
+            if (lastBubble) lastBubble.remove();
+            
+            postAI(reply);
+        }
+
+        // ── API helpers ────────────────────────────────────────────────────────
+        async function sendCommand(cmd) {
+            try {
+                const res = await fetch('/api/dashboard/command', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cmd })
+                });
+                const d = await res.json();
+                return d.message || (d.success ? 'Đã gửi lệnh thành công.' : 'Thiết bị chưa kết nối.');
+            } catch(e) { return 'Lỗi gửi lệnh: ' + e.message; }
+        }
+
+        async function callChat(message) {
+            try {
+                const res = await fetch('/api/dashboard/chat', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+                const d = await res.json();
+                return d.reply || 'Không nhận được phản hồi.';
+            } catch(e) { return 'Lỗi kết nối AI: ' + e.message; }
+        }
+
+        // ── Action buttons ─────────────────────────────────────────────────────
+        async function toggleAction(id) {
+            states[id] = !states[id];
+            const on = states[id];
+            const btn = document.getElementById(`btn-${id}`);
+            const names = { music: 'Nhạc', swing: 'Võng', fan: 'Quạt' };
+            postUser(`${on ? 'Bật' : 'Tắt'} ${names[id]}`);
+            if(on) {
+                btn.className = "btn-action flex-1 md:flex-none px-3 md:px-5 py-2 rounded-xl bg-brand-secondary text-white text-[10px] font-black flex items-center justify-center gap-2 shadow-lg shadow-brand-secondary/20";
+                btn.innerHTML = `<i class="fa-solid fa-stop text-[8px]"></i> TẮT ${names[id].toUpperCase()}`;
+            } else {
+                btn.className = "btn-action flex-1 md:flex-none px-3 md:px-5 py-2 rounded-xl bg-brand-dominant border-2 border-transparent text-[10px] font-black text-gray-700 hover:border-brand-secondary/30 transition-all flex items-center justify-center gap-2 shadow-sm whitespace-nowrap";
+                const icons = { music: 'fa-music', swing: 'fa-bed', fan: 'fa-fan' };
+                btn.innerHTML = `<i class="fa-solid ${icons[id]} text-brand-secondary"></i> ${names[id].toUpperCase()}`;
+            }
+            const msg = await sendCommand(id);
+            setTimeout(() => postAI(`Remote: ${msg}`), 300);
+        }
+
+        async function checkPose() {
+            postUser('Check Pose Analysis');
+            const msg = await sendCommand('check_pose');
+            setTimeout(() => postAI(`Gemini AI: ${msg}`), 300);
+        }
+
+        async function stopAll() {
+            postUser('🔴 DỪNG TẤT CẢ.');
+            for (const k of Object.keys(states)) { if (states[k]) await toggleAction(k); }
+            const msg = await sendCommand('stop_all');
+            setTimeout(() => postAI(`Remote: ${msg}`), 500);
+        }
+
+        // ── Chat ───────────────────────────────────────────────────────────────
+        async function sendChat() {
+            const i = document.getElementById('chat-input');
+            if(!i.value.trim()) return;
+            const val = i.value; i.value = '';
+            postUser(val);
+            postAI('<i class="fa-solid fa-spinner fa-spin text-xs mr-1"></i> Đang xử lý...');
+            const reply = await callChat(val);
+            const lastBubble = c.querySelector('.chat-bubble:last-child');
+            if (lastBubble) lastBubble.remove();
+            postAI(reply);
+        }
+        function handleEnter(e) { if(e.key === 'Enter') sendChat(); }
+
+        const c = document.getElementById('chat-container');
+
+        // ── Inline markdown renderer (no CDN needed) ────────────────────────────
+        function renderMd(t) {
+            if (!t || t.includes('<i class=')) return t; // skip HTML/spinner
+            return t
+                .replace(/^#{1,3}\s+(.+)$/gm, '<strong class="block text-gray-800 mt-2 mb-0.5">$1</strong>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                .replace(/`(.+?)`/g, '<code>$1</code>')
+                .replace(/^---+$/gm, '<hr>')
+                .replace(/^[\*\-]\s+(.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
+                .replace(/^\d+\.\s+(.+)$/gm, '<li class="ml-4 list-decimal">$1</li>')
+                .replace(/(<li[^>]*>.*<\/li>\n?)+/g, s => `<ul class="my-1 space-y-0.5">${s}</ul>`)
+                .replace(/\n\n+/g, '</p><p class="mt-1">')
+                .replace(/\n/g, '<br>')
+                .replace(/^/, '<p>').replace(/$/, '</p>');
+        }
+
+        function postUser(t) {
+            c.insertAdjacentHTML('beforeend', `<div class="flex items-start gap-4 chat-bubble self-end flex-row-reverse mt-2 animate-in slide-in-from-right-2 duration-300"><div class="w-8 h-8 rounded-xl bg-white border-2 border-brand-dominant shadow-sm flex items-center justify-center shrink-0"><i class="fa-solid fa-user-tie text-brand-secondary text-xs"></i></div><div class="chat-user rounded-2xl px-5 py-3 shadow-sm text-sm font-bold text-gray-700">${t}</div></div>`);
+            c.scrollTop = c.scrollHeight;
+        }
+        function postAI(h) {
+            // Render markdown nếu có marked.js, fallback về plain HTML
+            const rendered = `<div class="markdown-body">${renderMd(h)}</div>`;
+            c.insertAdjacentHTML('beforeend', `<div class="flex items-start gap-3 chat-bubble self-start mt-2 animate-in slide-in-from-left-2 duration-300"><div class="w-8 h-8 rounded-xl bg-white border-2 border-brand-dominant shadow-sm flex items-center justify-center shrink-0 relative"><i class="fa-solid fa-robot text-brand-secondary text-sm"></i><span class="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></span></div><div class="chat-ai rounded-2xl md:rounded-3xl rounded-tl-none px-5 py-3 shadow-sm text-sm border-2 border-brand-dominant relative font-medium text-gray-700">${rendered}</div></div>`);
+            c.scrollTop = c.scrollHeight;
+        }
+
+        // ── Mock toggle ────────────────────────────────────────────────────────
+        async function toggleMock(btn) {
+            try {
+                const res = await fetch('/api/dashboard/mode', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: 'mock_toggle' })
+                });
+                const data = await res.json();
+                btn.querySelector('i').classList.toggle('fa-bounce', data.mock_mode);
+                postAI(`Mock Data: <b>${data.mock_mode ? 'STARTED' : 'STOPPED'}</b>.`);
+            } catch(e) { postAI('Lỗi đổi mock mode.'); }
+        }
+
+        // ── Auto/Manual toggle ─────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+            const tog = document.getElementById('mode-toggle-top');
+            if (tog) tog.addEventListener('change', async function() {
+                const mode = this.checked ? 'auto' : 'manual';
+                await fetch('/api/dashboard/mode', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode })
+                });
+            });
+        });
+
+        // ── Live sensor polling ────────────────────────────────────────────────
+        async function pollSensors() {
+            try {
+                const res = await fetch('/api/dashboard/sensors');
+                const d = await res.json();
+                const tEl = document.getElementById('stat-temp');
+                const hEl = document.getElementById('stat-hum');
+                if (tEl) tEl.textContent = d.temp ? d.temp.toFixed(1) : '--';
+                if (hEl) hEl.textContent = d.humidity ? Math.round(d.humidity) : '--';
+
+                const cryEl = document.getElementById('stat-cry');
+                if (cryEl) {
+                    cryEl.textContent = d.cry_status ? 'YES' : 'NO';
+                    cryEl.className = d.cry_status
+                        ? 'text-[9px] font-black px-3 py-1 rounded-lg bg-red-500/10 text-red-600 border border-red-500/20'
+                        : 'text-[9px] font-black px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20';
+                }
+                const poseEl = document.getElementById('stat-pose');
+                if (poseEl && d.pose && d.pose !== 'UNKNOWN') poseEl.textContent = d.pose;
+
+                const tog = document.getElementById('mode-toggle-top');
+                if (tog) tog.checked = d.mode === 'auto';
+            } catch(e) { /* server not ready */ }
+        }
+
+        // ── Bootstrap ─────────────────────────────────────────────────────────
+        function clock() { document.getElementById('clock').innerText = new Date().toLocaleTimeString('vi-VN', { hour12: false }); }
+        setInterval(clock, 1000); clock();
+        setInterval(pollSensors, 5000);
+        window.onload = () => { init(); c.scrollTop = c.scrollHeight; pollSensors(); };
+    </script>
+</body>
+</html>

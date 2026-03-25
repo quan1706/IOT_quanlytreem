@@ -201,7 +201,7 @@ LLM:
     api_key: your_chatglm_api_key
   GeminiLLM:
     type: gemini
-    api_key: ""
+    api_key: "AIzaSyCZd9k2q4IQ-mwtR7jiRDo5atM-v-vdWcE"
     model_name: "gemini-2.5-flash-lite"
     http_proxy: ""
     https_proxy: ""
@@ -226,7 +226,7 @@ VLLM:
 TTS:
   EdgeTTS:
     type: edge
-    voice: zh-CN-XiaoxiaoNeural
+    voice: vi-VN-HoaiMyNeural
     output_dir: tmp/
   OpenAITTS:
     type: openai
