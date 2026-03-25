@@ -70,9 +70,8 @@ class AIProcessor:
                 reply = result.get("reply", "")
 
                 # Lọc bỏ "none"
-                valid_actions = [a for a in actions if a != "none"]
-                if valid_actions:
-                    return {"actions": valid_actions, "reply": reply}
+                # Trả về kết quả ngay cả khi không có actions (đối thoại bình thường)
+                return {"actions": valid_actions, "reply": reply}
             except Exception as e:
                 setup_logging().bind(tag=TAG).error(f"Lỗi parse JSON từ AI: {e}")
         
@@ -159,14 +158,33 @@ class AIProcessor:
         await notifier.send_message(chat_id, msg)
 
     @staticmethod
-    async def summarize_baby_condition(api_key, cry_data_summary, days):
+    async def summarize_baby_condition(config_or_api_key, cry_data_summary, days):
         """
-        Sử dụng AI để tóm tắt và đánh giá tình trạng của bé dựa trên dữ liệu tiếng khóc.
-        cry_data_summary: chuỗi văn bản tóm tắt các điểm dữ liệu (VD: mốc thời gian, cường độ).
+        Phân tích tình trạng bé qua GeminiLLM SDK (google-generativeai).
+        config_or_api_key: dict config hoặc str legacy key (backward-compat).
         """
-        if not api_key:
-            return "Trợ lý AI chưa sẵn sàng (thiếu API Key)."
-        
+        import asyncio
+        from google import generativeai as genai
+        from google.generativeai import GenerationConfig
+
+        # Backward-compat: nếu nhận str (old Groq key), load config từ yaml
+        if isinstance(config_or_api_key, str):
+            try:
+                import yaml
+                with open("config.yaml", "r", encoding="utf-8") as f:
+                    config = yaml.safe_load(f)
+            except Exception:
+                config = {}
+        else:
+            config = config_or_api_key
+
+        llm_cfg = config.get("LLM", {}).get("GeminiLLM", {})
+        api_key  = llm_cfg.get("api_key", "")
+        model_name = llm_cfg.get("model_name", "gemini-2.0-flash")
+
+        if not api_key or "your" in api_key.lower():
+            return "Tiểu Bảo AI: Chưa cấu hình GeminiLLM API key."
+
         period_text = f"{days} ngày qua" if days > 1 else "24 giờ qua"
         prompt = AIProcessor._load_prompt(
             "baby_condition_summary.md",
@@ -174,9 +192,38 @@ class AIProcessor:
             cry_data_summary=cry_data_summary
         )
 
-        messages = [{"role": "system", "content": prompt}]
-        content, error = await AIProvider.call_llm(api_key, messages, max_tokens=300)
-        return content or "AI bận, không thể đưa ra đánh giá lúc này."
+        gen_cfg = GenerationConfig(
+            max_output_tokens=1200,
+            temperature=0.75,
+        )
+
+        def _call_sdk():
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(prompt, generation_config=gen_cfg)
+            return resp.text.strip()
+
+        # Chạy SDK đồng bộ trong thread pool, retry tối đa 3 lần nếu 429
+        last_err = None
+        for attempt in range(3):
+            try:
+                result = await asyncio.to_thread(_call_sdk)
+                return result
+            except Exception as e:
+                last_err = e
+                err_str = str(e)
+                if "429" in err_str or "quota" in err_str.lower():
+                    wait = 2 ** attempt  # 1s, 2s, 4s
+                    setup_logging().bind(tag=TAG).warning(
+                        f"Gemini 429 (lần {attempt+1}/3), thử lại sau {wait}s..."
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    break
+
+        setup_logging().bind(tag=TAG).error(f"Gemini SDK error: {last_err}")
+        return "AI bận, không thể đưa ra đánh giá lúc này."
+
 
     @staticmethod
     async def answer_history_question(api_key, question, cry_data_summary):

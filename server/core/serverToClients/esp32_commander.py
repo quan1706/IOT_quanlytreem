@@ -160,11 +160,11 @@ class ESP32Commander:
                 self.logger.bind(tag=TAG).info("[MUSIC] Lệnh 'Dừng' -> Ngắt luồng nhạc!")
                 self._is_playing_music = False
 
-        # Log: Server → ESP32 JSON payload
+        # Log: Server → ESP JSON payload
         DashboardUpdater.add_system_log(
-            "Server→ESP32",
-            command,
-            esp32_payload,
+            from_node="Server",
+            to_node="ESP",
+            data={"cmd": command, "payload": esp32_payload}
         )
 
         if not self.connections:

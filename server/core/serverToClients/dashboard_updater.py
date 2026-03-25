@@ -24,6 +24,8 @@ DASHBOARD_STATE = {
     "temp": 0.0,             # Nhiệt độ hiện tại
     "humidity": 0.0,         # Độ ẩm hiện tại
     "last_cry_time": 0,      # Thời gian cuối cùng báo động khóc (cooldown toàn cục)
+    "pose": "UNKNOWN",       # Tư thế bé gần nhất
+    "cry_status": False,     # True nếu phát hiện khóc trong vòng 60 giây gần nhất
 }
 
 MAX_HISTORY = 50   # Giới hạn số bản ghi lưu trong bộ nhớ
@@ -69,7 +71,7 @@ class DashboardUpdater:
         logger.bind(tag=TAG).warning(
             f"[CRY EVENT] {time_str} | {message}"
         )
-        DashboardUpdater.add_system_log("Cry-Detection", "cry_detected", {"msg": message})
+        DashboardUpdater.add_system_log("ESP", "Server", {"event": "cry_detected", "msg": message})
         return True
 
     # ------------------------------------------------------------------
@@ -101,13 +103,25 @@ class DashboardUpdater:
         logger.bind(tag=TAG).info(
             f"[ACTION] {time_str} | source={source} | action={action} | {result}"
         )
-        DashboardUpdater.add_system_log(source, action, {"result": result})
+        # Chuyển source name sang chuẩn 5 nguồn
+        src_map = {
+            "telegram_button": "Tele",
+            "telegram_text": "Tele",
+            "telegram_ai": "Tele",
+            "dashboard_web": "Web",
+            "web_button": "Web",
+            "web_ai": "Web",
+            "ESP32-Mic": "ESP",
+            "ESP32-Sensor": "ESP"
+        }
+        log_source = src_map.get(source, source)
+        DashboardUpdater.add_system_log(log_source, "ESP", f"Action: {action}, Result: {result}")
 
     # ------------------------------------------------------------------
     # AI logs (Nghiệp vụ AI tư vấn)
     # ------------------------------------------------------------------
     @staticmethod
-    def add_ai_log(query: str, response: str, action: str, status: str):
+    def add_ai_log(query: str, response: str, action: str, status: str, from_node: str = "Server", to_node: str = "Tele"):
         """
         Ghi nhận log AI tư vấn:
         - status: 'suggested' | 'confirmed' | 'cancelled'
@@ -128,9 +142,10 @@ class DashboardUpdater:
         logger = setup_logging()
         log_json = json.dumps(entry, ensure_ascii=False)
         logger.bind(tag=TAG).info(f"[AI EVENT JSON] {log_json}")
-        DashboardUpdater.add_system_log("AI", entry.get("action", "-"), {
+        DashboardUpdater.add_system_log(from_node, to_node, {
+            "action": entry.get("action", "-"),
             "status": entry.get("status"),
-            "q": entry.get("query", "")[:40],
+            "query": entry.get("query", "")[:40],
         })
 
         # 2. Log to persistent file in data/
@@ -149,23 +164,33 @@ class DashboardUpdater:
     # System log – tổng hợp (time | name | action | json tóm gọn)
     # ------------------------------------------------------------------
     @staticmethod
-    def add_system_log(name: str, action: str, data: dict):
-        """
-        Ghi một dòng log tổng hợp vào system_logs:
-        - name   : nguồn gốc (vd: 'Telegram-Bot', 'AI', 'Cry-Detection')
-        - action : hành động ngắn gọn (vd: 'phat_nhac', 'suggested', 'cry_detected')
-        - data   : dict JSON tóm gọn sẽ hiển thị dạng inline
-        """
+    def add_system_log(from_node: str, to_node: str, data: any):
+        """Ghi log hệ thống với format: {from, to, data}."""
         time_str = time.strftime("%H:%M:%S", time.localtime())
         entry = {
             "time": time_str,
-            "name": name,
-            "action": action,
-            "json": json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+            "from": from_node,
+            "to": to_node,
+            "data": json.dumps(data, ensure_ascii=False) if not isinstance(data, str) else data
         }
         DASHBOARD_STATE["system_logs"].append(entry)
         if len(DASHBOARD_STATE["system_logs"]) > MAX_HISTORY:
             DASHBOARD_STATE["system_logs"].pop(0)
+            
+        # Ghi vào file data/system_logs.json
+        try:
+            import os
+            # Lấy đường dẫn tuyệt đối đến thư mục server/data
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            data_dir = os.path.join(base_dir, "data")
+            os.makedirs(data_dir, exist_ok=True)
+            log_path = os.path.join(data_dir, "system_logs.json")
+            
+            with open(log_path, "w", encoding="utf-8") as f:
+                json.dump(DASHBOARD_STATE["system_logs"], f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            from config.logger import setup_logging
+            setup_logging().bind(tag="DashboardUpdater").error(f"Lỗi ghi file system_logs.json: {e}")
 
     # ------------------------------------------------------------------
     # Mode
@@ -175,14 +200,54 @@ class DashboardUpdater:
         """Cập nhật dữ liệu từ cảm biến lên dashboard state."""
         DASHBOARD_STATE["temp"] = temp
         DASHBOARD_STATE["humidity"] = humidity
-        DashboardUpdater.add_system_log("Sensor", "update", {"t": temp, "h": humidity})
+        DashboardUpdater.add_system_log("ESP", "Server", {"t": temp, "h": humidity})
+        
+        # Ghi nhận vào lịch sử chart mỗi 10 phút (600s)
+        now = time.time()
+        if now - getattr(DashboardUpdater, "_last_chart_record", 0) > 600:
+            DashboardUpdater._last_chart_record = now
+            DashboardUpdater._record_chart_point(temp, humidity)
+
+    @staticmethod
+    def _record_chart_point(temp, hum):
+        """Lưu điểm dữ liệu mới vào data/chart_history.json (rolling window)."""
+        file_path = "data/chart_history.json"
+        try:
+            if os.path.exists(file_path):
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            else:
+                data = {"labels": [], "cry": [], "temp": [], "hum": []}
+
+            time_str = time.strftime("%H:%M", time.localtime())
+            
+            # Thêm điểm mới
+            data["labels"].append(time_str)
+            data["temp"].append(round(temp, 2))
+            data["hum"].append(round(hum, 1))
+            
+            # Cry value: lấy cường độ khóc cao nhất trong 10p qua (ví dụ)
+            # Ở đây ta lấy logic đơn giản: nếu cry_status là True thì coi như có khóc
+            cry_val = 500 if DASHBOARD_STATE.get("cry_status") else 50
+            data["cry"].append(cry_val)
+
+            # Giới hạn 144 điểm (tương đương 24h nếu 10p/điểm)
+            for key in ["labels", "temp", "hum", "cry"]:
+                if len(data[key]) > 144:
+                    data[key].pop(0)
+
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger = setup_logging()
+            logger.bind(tag=TAG).error(f"Lỗi ghi chart_history: {e}")
 
     @staticmethod
     def set_mode(mode: str):
         DASHBOARD_STATE["mode"] = mode
         logger = setup_logging()
         logger.bind(tag=TAG).info(f"[MODE CHANGE] Chế độ mới: {mode.upper()}")
-        DashboardUpdater.add_system_log("System", "mode_change", {"mode": mode})
+        DashboardUpdater.add_system_log("Web", "Server", {"action": "mode_change", "mode": mode})
 
     @staticmethod
     def set_mock_mode(enabled: bool):
@@ -190,7 +255,15 @@ class DashboardUpdater:
         logger = setup_logging()
         status = "ON" if enabled else "OFF"
         logger.bind(tag=TAG).info(f"[MOCK MODE] Mock Data: {status}")
-        DashboardUpdater.add_system_log("System", "mock_change", {"mock_mode": status})
+        DashboardUpdater.add_system_log("Web", "Server", {"action": "mock_change", "mock_mode": status})
+
+    @staticmethod
+    def update_pose(pose: str):
+        """Cập nhật tư thế bé gần nhất từ pose handler."""
+        DASHBOARD_STATE["pose"] = pose.upper() if pose else "UNKNOWN"
+        logger = setup_logging()
+        logger.bind(tag=TAG).info(f"[POSE UPDATE] Tư thế mới: {DASHBOARD_STATE['pose']}")
+        DashboardUpdater.add_system_log("ESPCAM", "Server", {"event": "pose_update", "pose": DASHBOARD_STATE["pose"]})
 
     @staticmethod
     def get_state() -> dict:
