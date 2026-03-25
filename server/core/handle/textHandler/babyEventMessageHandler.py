@@ -52,9 +52,9 @@ class BabyEventMessageHandler(TextMessageHandler):
 
             # ── Log vào System Log (Event đã được add vào history ở trên) ──
             DashboardUpdater.add_system_log(
-                name="ESP32-Mic",
-                action="cry_detected",
-                data={"device": device_id, "rms": rms_level, "ts": timestamp}
+                from_node="ESP",
+                to_node="Server",
+                data={"event": "cry_detected", "rms": rms_level, "device": device_id}
             )
 
             # ── Gửi Telegram text alert ──────────────────────────────────
@@ -101,8 +101,8 @@ class BabyEventMessageHandler(TextMessageHandler):
             from core.serverToClients import DashboardUpdater
             DashboardUpdater.update_sensor_data(temp, humidity)
             DashboardUpdater.add_system_log(
-                name="ESP32-Sensor",
-                action="temperature",
+                from_node="ESP",
+                to_node="Server",
                 data={"temp": temp, "humidity": humidity, "device": device_id}
             )
 
@@ -191,8 +191,8 @@ class BabyEventMessageHandler(TextMessageHandler):
             from core.serverToClients import DashboardUpdater
             # Giả định DashboardUpdater có phương thức hoặc ta cập nhật trực tiếp qua system log
             DashboardUpdater.add_system_log(
-                name="ESP32-Fan",
-                action=f"fan_{status}",
+                from_node="ESP",
+                to_node="Server",
                 data={"status": status, "source": source, "device": device_id}
             )
             # Nếu Dashboard có field riêng cho quạt, cần cập nhật ở đây

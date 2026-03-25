@@ -111,39 +111,50 @@ class TelegramRouter:
             # --- Xử lý AI nhận xét biểu đồ ---
             if cb_data.startswith("menu_ai_analyze_"):
                 target = cb_data.replace("menu_ai_analyze_", "")
-                await self.client.answer_callback_query(cb_id, text="🤖 Tiểu Bảo đang xem biểu đồ...")
-                
-                from core.utils.chart_gen import generate_mock_cry_data, generate_combined_mock_data
+                await self.client.answer_callback_query(cb_id, text="🤖 Tiểu Bảo đang phân tích...")
+
+                from core.utils.chart_gen import build_chart_summary
                 from core.serverToClients.ai_processor import AIProcessor
-                
-                # 1. Lấy dữ liệu phù hợp
-                if target == "combined":
-                    labels, values, temps = generate_combined_mock_data(days=1)
-                    data_str = "Dữ liệu kết hợp:\n" + "\n".join([f"- {labels[i]}: Khóc {values[i]}, Nhiệt độ {temps[i]}°C" for i in range(len(labels))])
-                    days = 1
-                else:
-                    days = int(target)
-                    labels, values = generate_mock_cry_data(days=days)
-                    # Lấy top điểm để AI dễ đọc
-                    indexed = list(enumerate(values))
-                    summary_idx = sorted(list(set(
-                        [i for i, v in sorted(indexed, key=lambda x: x[1], reverse=True)[:10]] + 
-                        [len(values)-1, len(values)-2]
-                    )))
-                    data_str = "\n".join([f"- {labels[i]}: {values[i]}" for i in summary_idx if i < len(labels)])
+                import json, os
 
-                # 2. Gọi AI
-                actual_key = self.config.get("LLM", {}).get("GroqLLM", {}).get("api_key", "")
-                if not actual_key:
-                    actual_key = self.config.get("ASR", {}).get("GroqASR", {}).get("api_key", "")
+                days = 1 if target == "combined" else int(target)
 
-                summary = await AIProcessor.summarize_baby_condition(actual_key, data_str, days)
-                
-                # 3. Cập nhật Caption
+                # Đọc dữ liệu đa cảm biến từ chart_history.json (nguồn chính xác từ Dashboard)
+                hist_labels, hist_cry, hist_temp, hist_hum = [], [], [], []
+                try:
+                    n_points = 144 if days == 1 else days * 48
+                    hist_path = "data/chart_history.json"
+                    if os.path.exists(hist_path):
+                        with open(hist_path, "r", encoding="utf-8") as f:
+                            hist = json.load(f)
+                        hist_labels = hist.get("labels", [])[-n_points:]
+                        hist_cry    = hist.get("cry",    [])[-n_points:]
+                        hist_temp   = hist.get("temp",   [])[-n_points:]
+                        hist_hum    = hist.get("hum",    [])[-n_points:]
+                except Exception:
+                    pass
+
+                # Fallback: sinh ngẫu nhiên nếu chưa có file (mock mode)
+                if not hist_labels:
+                    from core.utils.chart_gen import generate_mock_cry_data
+                    hist_labels, hist_cry = generate_mock_cry_data(days=days)
+
+                # Xây dựng chuỗi tóm tắt bằng hàm dùng chung
+                data_summary = build_chart_summary(
+                    labels=hist_labels,
+                    cry=hist_cry or None,
+                    temp=hist_temp or None,
+                    hum=hist_hum or None,
+                )
+
+                # Gọi AI qua hàm thống nhất (Gemini, cùng prompt với Dashboard)
+                summary = await AIProcessor.summarize_baby_condition(self.config, data_summary, days)
+
+                # Cập nhật caption ảnh biểu đồ trên Telegram
                 current_caption = message_cb.get("caption", "")
-                ai_prefix = self.msg_config.get("commands", {}).get("ai_summary_prefix", {}).get("text", "\n\n🤖 *Đánh giá từ Tiểu Bảo:*\n")
+                ai_prefix = self.msg_config.get("commands", {}).get("ai_summary_prefix", {}).get("text", "\n\n🤖 *Nhận định từ Tiểu Bảo:*\n")
                 new_caption = current_caption + ai_prefix + summary
-                
+
                 await self.client.edit_message_caption(chat_id, message_cb.get("message_id"), new_caption)
             return
 
@@ -360,7 +371,7 @@ class TelegramRouter:
             # Fallback
             response_text = f"{prefix}\n\n⚙️ STATUS: {state['mode']}"
 
-        DashboardUpdater.add_system_log("Command", "/status", {"mode": state["mode"]})
+        DashboardUpdater.add_system_log("Tele", "Server", {"cmd": "/status", "mode": state["mode"]})
         await self.client.send_message(chat_id, response_text)
 
     async def _cmd_mode(self, chat_id, text: str):
@@ -396,7 +407,7 @@ class TelegramRouter:
             success = self.dashboard_handler.update_api_key(new_key)
             if success:
                 msg = self.msg_config.get("commands", {}).get("setkey_success", {}).get("text", "✅ OK")
-                DashboardUpdater.add_system_log("Command", "/setkey", {"result": "ok"})
+                DashboardUpdater.add_system_log("Tele", "Server", {"cmd": "/setkey", "result": "ok"})
             else:
                 msg = self.msg_config.get("commands", {}).get("setkey_fail", {}).get("text", "❌ Fail")
         else:
@@ -606,6 +617,7 @@ class TelegramRouter:
         self.logger.bind(tag=TAG).info(
             f"[AI] Nhận message: '{clean_text}' | Key: {'OK' if actual_key else 'TRỐNG'}"
         )
+        DashboardUpdater.add_system_log("Tele", "Server", {"text": clean_text})
 
         if not actual_key:
             await self.client.send_message(
@@ -701,7 +713,7 @@ class TelegramRouter:
             history.append({"role": "assistant", "content": response_text})
             self.conversation_history[str(chat_id)] = history[-10:]
 
-            DashboardUpdater.add_system_log("Chat", "conversation", {"q": clean_text[:40]})
+            DashboardUpdater.add_system_log("Tele", "Server", {"q": clean_text[:40]})
             self.logger.bind(tag=TAG).info(f"Fallback response len {len(response_text)}")
             if len(response_text.strip()) > 0:
                 await self.client.send_message(chat_id, response_text, reply_markup=get_unified_inline_menu())
