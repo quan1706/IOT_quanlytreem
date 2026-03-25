@@ -128,7 +128,7 @@ end_prompt:
 # ===========================================================================
 selected_module:
   VAD: SileroVAD
-  ASR: FunASR
+  ASR: GroqASR
   LLM: ChatGLMLLM
   VLLM: ChatGLMVLLM
   TTS: EdgeTTS
@@ -177,6 +177,7 @@ ASR:
     api_key: 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
     base_url: https://api.groq.com/openai/v1/audio/transcriptions
     model_name: whisper-large-v3-turbo
+    language: vi
     output_dir: tmp/
 
 # ===========================================================================
@@ -199,6 +200,12 @@ LLM:
     model_name: glm-4-flash
     url: https://open.bigmodel.cn/api/paas/v4/
     api_key: your_chatglm_api_key
+  # --- Key riêng cho Telegram AI (tách khỏi GroqASR để tránh rate limit chung) ---
+  GroqLLM:
+    type: openai
+    model_name: llama-3.3-70b-versatile
+    url: https://api.groq.com/openai/v1/
+    api_key: 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
   GeminiLLM:
     type: gemini
     api_key: ""
@@ -226,7 +233,7 @@ VLLM:
 TTS:
   EdgeTTS:
     type: edge
-    voice: zh-CN-XiaoxiaoNeural
+    voice: vi-VN-HoaiMyNeural
     output_dir: tmp/
   OpenAITTS:
     type: openai

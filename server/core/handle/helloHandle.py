@@ -20,15 +20,15 @@ TAG = __name__
 WAKEUP_CONFIG = {
     "refresh_time": 10,
     "responses": [
-        "我一直都在呢，您请说。",
-        "在的呢，请随时吩咐我。",
-        "来啦来啦，请告诉我吧。",
-        "您请说，我正听着。",
-        "请您讲话，我准备好了。",
-        "请您说出指令吧。",
-        "我认真听着呢，请讲。",
-        "请问您需要什么帮助？",
-        "我在这里，等候您的指令。",
+        "Con đây rồi, ba mẹ cần gì ạ?",
+        "Dạ con nghe, ba mẹ cứ nói ạ.",
+        "Baby Guard đây, ba mẹ cần con giúp gì?",
+        "Xin chào, con đang lắng nghe đây!",
+        "Dạ, ba mẹ nói đi, con sẵn sàng rồi.",
+        "Con nghe thấy rồi, ba mẹ cần gì ạ?",
+        "Dạ có con đây, ba mẹ cứ nói.",
+        "Xin chào! Con có thể giúp gì cho ba mẹ?",
+        "Con đây ạ, ba mẹ cần hỗ trợ gì không?",
     ],
 }
 
@@ -99,7 +99,7 @@ async def checkWakeupWords(conn: "ConnectionHandler", text):
             "voice": "default",
             "file_path": "config/assets/wakeup_words_short.wav",
             "time": 0,
-            "text": "我在这里哦！",
+            "text": "Con đây rồi, ba mẹ cần gì ạ?",
         }
 
     # 获取音频数据
