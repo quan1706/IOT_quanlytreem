@@ -12,7 +12,10 @@ TAG = __name__
 
 
 class SimpleHttpServer:
+    _instance = None  # Luu tru instance dang chay
+
     def __init__(self, config: dict):
+        SimpleHttpServer._instance = self
         self.config = config
         self.logger = setup_logging()
         self.ota_handler = OTAHandler(config)
@@ -20,6 +23,7 @@ class SimpleHttpServer:
         self.dashboard_handler = DashboardHandler(config)
         self.pose_handler = PoseHandler(config)
         self._visualizers = []  # Danh sách các stream đang kết nối từ Dashboard
+        self.hq_priority_until = 0 # Timestamp đến khi nào thì ngừng ưu tiên HQ
 
     def _get_websocket_url(self, local_ip: str, port: int) -> str:
         """Lấy địa chỉ websocket
@@ -57,18 +61,24 @@ class SimpleHttpServer:
         await response.prepare(request)
         
         # Thêm vào danh sách visualizers
-        self._visualizers.append(response)
+        # Tạo một queue riêng cho client này
+        client_queue = asyncio.Queue()
+        self._visualizers.append((response, client_queue))
         self.logger.bind(tag=TAG).info(f"Dashboard kết nối Live Stream. Tổng visualizers: {len(self._visualizers)}")
         
         try:
             # Giữ kết nối mở cho đến khi client ngắt
             while True:
-                await asyncio.sleep(1)
+                frame_data = await client_queue.get()
+                if frame_data is None: # Signal to close the stream
+                    break
+                await response.write(frame_data)
         except Exception:
             pass
         finally:
-            if response in self._visualizers:
-                self._visualizers.remove(response)
+            # Remove the client's response and queue from the list
+            if (response, client_queue) in self._visualizers:
+                self._visualizers.remove((response, client_queue))
             self.logger.bind(tag=TAG).info(f"Dashboard ngắt Live Stream. Còn lại: {len(self._visualizers)}")
             return response
 
@@ -87,16 +97,15 @@ class SimpleHttpServer:
         data = header + image_bytes + footer
 
         # Gửi tới các client (dùng list copy để an toàn khi remove)
-        disconnected = []
-        for resp in self._visualizers:
+        for resp, client_queue in list(self._visualizers):
             try:
-                await resp.write(data)
+                # Đưa vào queue thay vì gửi trực tiếp để tránh block luồng xử lý ảnh
+                if client_queue.full():
+                    try: client_queue.get_nowait()
+                    except: pass
+                await client_queue.put(data)
             except Exception:
-                disconnected.append(resp)
-        
-        for d in disconnected:
-            if d in self._visualizers:
-                self._visualizers.remove(d)
+                pass
 
     async def _handle_cry(self, request):
         """
@@ -159,10 +168,28 @@ class SimpleHttpServer:
             self.logger.bind(tag=TAG).error(f"Lỗi xử lý /api/cry: {e}")
             return web.json_response({"success": False, "error": str(e)}, status=500)
 
+    def drop_all_streams(self):
+        """Đóng tất cả các luồng MJPEG đang mở và tạm dừng nhận frame mới để ưu tiên HQ Capture."""
+        import time
+        self.hq_priority_until = time.time() + 2.0 # Ưu tiên HQ trong 2 giây tới
+        
+        self.logger.bind(tag=TAG).info(f"--- [CLEANUP] Đang đóng {len(self._visualizers)} luồng stream để ưu tiên HQ Capture ---")
+        for resp, q in list(self._visualizers):
+            try:
+                # Gửi None báo hiệu kết thúc vòng lặp handle_stream
+                asyncio.create_task(q.put(None))
+            except Exception:
+                pass
+        self._visualizers.clear()
+
     async def _handle_frame(self, request):
         """
         POST /api/vision/frame — Chấp nhận frame ảnh từ ESP32-CAM (Cực kỳ linh hoạt).
         """
+        import time
+        if time.time() < self.hq_priority_until:
+            # Từ chối nhận frame thường để ESP32-CAM rảnh tay gửi ảnh HQ
+            return web.Response(status=503) # Service Unavailable
         # Thêm log verify headers để debug
         # self.logger.bind(tag=TAG).debug(f"H-FRAME: {request.headers}")
         
@@ -208,25 +235,36 @@ class SimpleHttpServer:
             return web.json_response({"success": False}, status=500)
 
     async def _handle_hq_capture(self, request):
-        """
-        POST /api/vision/hq_capture — Tiếp nhận ảnh HQ (Cực kỳ linh hoạt).
-        Thiết kế để chấp nhận cả multipart và raw JPEG từ ESP32-CAM.
-        """
-        import os
+        """Handler cho lấy ảnh HQ (chụp ảnh đơn)."""
         import time
+        if request.method == "GET":
+             return web.json_response({
+                "status": "ready",
+                "message": "Endpoint is active. Use POST to upload HQ image.",
+                "details": {
+                    "client_max_size": "16MB",
+                    "priority_active": time.time() < self.hq_priority_until
+                }
+            })
+
+        print(f"--- [HTTP] HQ_CAPTURE FROM {request.remote} ---", flush=True)
+        self.logger.bind(tag=TAG).info("--- [HQ] NHẬN YÊU CẦU POST ---")
+        import os
         from core.serverToClients import DashboardUpdater
         
-        content_len = request.headers.get('Content-Length', 'unknown')
-        content_type = request.headers.get('Content-Type', 'unknown')
-        self.logger.bind(tag=TAG).info(f"--- [HQ] NHẬN YÊU CẦU: Type={content_type}, Len={content_len} ---")
-        
         try:
+            content_type = request.headers.get('Content-Type', 'unknown')
+            content_len = request.headers.get('Content-Length', 'unknown')
+            self.logger.bind(tag=TAG).info(f"--- [HQ] NHẬN YÊU CẦU: Type={content_type}, Len={content_len} ---")
+            
             image_bytes = None
             try:
                 body = await asyncio.wait_for(request.read(), timeout=20.0)
                 self.logger.bind(tag=TAG).info(f"--- [HQ] Đã đọc xong body: {len(body)} bytes ---")
             except asyncio.TimeoutError:
-                self.logger.bind(tag=TAG).error("--- [HQ] Timeout (20s) khi đọc raw body ---")
+                self.logger.bind(tag=TAG).error("--- [HQ] Timeout (20s) khi đọc raw body. Đang đóng socket. ---")
+                if request.transport:
+                    request.transport.close()
                 return web.json_response({"success": False, "error": "Read timeout"}, status=408)
 
             # Trích xuất JPEG marker: start=FF D8, end=FF D9
@@ -304,7 +342,16 @@ class SimpleHttpServer:
             port = int(server_config.get("http_port", 8003))
 
             if port:
-                app = web.Application()
+                async def debug_middleware(app, handler):
+                    async def middleware_handler(request):
+                        self.logger.bind(tag=TAG).info(f"[HTTP] {request.method} {request.path} from {request.remote}")
+                        return await handler(request)
+                    return middleware_handler
+
+                app = web.Application(
+                    middlewares=[debug_middleware],
+                    client_max_size=16 * 1024 * 1024  # 16MB
+                )
                 
                 if not read_config_from_api:
                     # Nếu không bật console điều khiển thông minh, chỉ chạy module đơn, thì cần thêm giao diện OTA đơn giản, dùng để gửi địa chỉ websocket
@@ -352,7 +399,7 @@ class SimpleHttpServer:
                         web.get("/api/vision/stream", self.handle_stream),
                         web.post("/api/vision/pose", self.pose_handler.handle_post),
                         web.post("/api/vision/log", self._handle_vision_log),
-                        web.post("/api/vision/hq_capture", self._handle_hq_capture),
+                        web.route("*", "/api/vision/hq_capture", self._handle_hq_capture),
                     ]
                 )
 
