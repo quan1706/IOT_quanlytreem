@@ -66,8 +66,8 @@ class YamnetClassifier:
 
             logger.bind(tag=TAG).info(f"[YAMNET] Top âm thanh: {top_class_name} ({top_score:.2f}) | Độ chắc chắn Bé khóc: {baby_cry_score:.2f}")
 
-            # Nếu điểm Baby Cry > 5% (Ngưỡng khá nhạy vì tiếng khóc có thể bị lẫn tiếng ồn)
-            return baby_cry_score > 0.05
+            # Nếu điểm Baby Cry > 15% (tăng từ 5% để giảm false positive với tiếng ồn khác)
+            return baby_cry_score > 0.15
         except Exception as e:
             logger.bind(tag=TAG).error(f"Lỗi phân tích YAMNet: {e}")
             return True

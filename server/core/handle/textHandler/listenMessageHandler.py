@@ -16,7 +16,7 @@ from core.providers.asr.dto.dto import InterfaceType
 TAG = __name__
 
 class ListenTextMessageHandler(TextMessageHandler):
-    """Listen消息处理器"""
+    """Bộ xử lý tin nhắn Listen"""
 
     @property
     def message_type(self) -> TextMessageType:
@@ -26,21 +26,27 @@ class ListenTextMessageHandler(TextMessageHandler):
         if "mode" in msg_json:
             conn.client_listen_mode = msg_json["mode"]
             conn.logger.bind(tag=TAG).debug(
-                f"客户端拾音模式：{conn.client_listen_mode}"
+                f"Chế độ thu âm của client: {conn.client_listen_mode}"
             )
         if msg_json["state"] == "start":
-            # 设备从播放模式切回录音模式,清除所有音频状态和缓冲区
+            # Nếu TTS đang phát (vd: AI đang dỗ bé), abort ngay khi user nhấn nút
+            # Điều này cho phép user ngắt lời AI bất kỳ lúc nào bằng nút nhấn
+            if conn.client_is_speaking:
+                from core.handle.abortHandle import handleAbortMessage
+                conn.logger.bind(tag=TAG).info("[PTT] Nhấn nút trong khi TTS đang phát → Abort TTS")
+                await handleAbortMessage(conn)
+            # Reset audio buffer để chuẩn bị ghi âm mới
             conn.reset_audio_states()
         elif msg_json["state"] == "stop":
             conn.client_voice_stop = True
             if conn.asr is None:
-                conn.logger.bind(tag=TAG).warning("ASR尚未初始化,忽略listen stop")
+                conn.logger.bind(tag=TAG).warning("ASR chưa được khởi tạo, bỏ qua sự kiện listen stop")
                 return
             if conn.asr.interface_type == InterfaceType.STREAM:
-                # 流式模式下，发送结束请求
+                # Chế độ stream: gửi yêu cầu kết thúc
                 asyncio.create_task(conn.asr._send_stop_request())
             else:
-                # 非流式模式：直接触发ASR识别或处理YAMNet
+                # Chế độ không stream: kích hoạt nhận diện ASR hoặc xử lý YAMNet trực tiếp
                 if len(conn.asr_audio) > 0:
                     asr_audio_task = conn.asr_audio.copy()
                     conn.reset_audio_states()
@@ -75,6 +81,24 @@ class ListenTextMessageHandler(TextMessageHandler):
                                 await send_tts_message(conn, "stop", None)
                                 return
 
+                            # Gửi Telegram alert (cho cả 2 mode, fire-and-forget)
+                            try:
+                                import time as _time
+                                from core.telegram.alerts import _global_alerts
+                                if _global_alerts:
+                                    time_str_alert = _time.strftime("%H:%M:%S", _time.localtime())
+                                    asyncio.create_task(
+                                        _global_alerts.send_cry_alert(
+                                            message="YAMNet phát hiện bé đang khóc!",
+                                            time_str=time_str_alert,
+                                            current_mode=DASHBOARD_STATE["mode"],
+                                        )
+                                    )
+                                else:
+                                    conn.logger.bind(tag=TAG).debug("Telegram chưa khởi tạo, bỏ qua alert")
+                            except Exception as tg_err:
+                                conn.logger.bind(tag=TAG).warning(f"Gửi Telegram alert thất bại (không nghẽn): {tg_err}")
+
                             if DASHBOARD_STATE["mode"] == "auto":
                                 # Tự động an ủi bé
                                 await startToChat(conn, "Hệ thống phát hiện tiếng bé khóc. Hãy nói một câu dỗ dành nhắc bé nín khóc thật nhẹ nhàng. Rất ngắn gọn thôi.")
@@ -93,29 +117,29 @@ class ListenTextMessageHandler(TextMessageHandler):
             conn.reset_audio_states()
             if "text" in msg_json:
                 conn.last_activity_time = time.time() * 1000
-                original_text = msg_json["text"]  # 保留原始文本
+                original_text = msg_json["text"]  # Giữ nguyên văn bản gốc
                 filtered_len, filtered_text = remove_punctuation_and_length(
                     original_text
                 )
 
-                # 识别是否是唤醒词
+                # Nhận diện xem có phải từ đánh thức không
                 is_wakeup_words = filtered_text in conn.config.get("wakeup_words")
-                # 是否开启唤醒词回复
+                # Kiểm tra có bật chế độ phản hồi từ đánh thức không
                 enable_greeting = conn.config.get("enable_greeting", True)
 
                 if is_wakeup_words and not enable_greeting:
-                    # 如果是唤醒词，且关闭了唤醒词回复，就不用回答
+                    # Nếu là từ đánh thức nhưng tắt phản hồi → không cần trả lời
                     await send_stt_message(conn, original_text)
                     await send_tts_message(conn, "stop", None)
                     conn.client_is_speaking = False
                 elif is_wakeup_words:
                     conn.just_woken_up = True
-                    # 上报纯文字数据（复用ASR上报功能，但不提供音频数据）
-                    enqueue_asr_report(conn, "嘿，你好呀", [])
-                    await startToChat(conn, "嘿，你好呀")
+                    # Ghi nhận văn bản thuần (dùng lại chức năng báo cáo ASR, không cần dữ liệu âm thanh)
+                    enqueue_asr_report(conn, "Xin chào bé!", [])
+                    await startToChat(conn, "Xin chào bé!")
                 else:
                     conn.just_woken_up = True
-                    # 上报纯文字数据（复用ASR上报功能，但不提供音频数据）
+                    # Ghi nhận văn bản thuần (dùng lại chức năng báo cáo ASR, không cần dữ liệu âm thanh)
                     enqueue_asr_report(conn, original_text, [])
-                    # 否则需要LLM对文字内容进行答复
+                    # Chuyển nội dung văn bản sang LLM để trả lời
                     await startToChat(conn, original_text)

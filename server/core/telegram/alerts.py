@@ -10,6 +10,9 @@ from core.telegram.menu_builder import get_token_limit_keyboard, get_ai_confirma
 
 TAG = "TelegramAlerts"
 
+# Global instance — được set bởi http_server.py khi TelegramBot khởi động
+# Cho phép các module khác (listenMessageHandler, ...) gửi Telegram alert mà không cần truyền reference
+_global_alerts: "TelegramAlerts | None" = None
 
 class TelegramAlerts:
     """
@@ -25,6 +28,12 @@ class TelegramAlerts:
     def set_msg_config(self, config: dict):
         """Được gọi bởi router để chia sẻ cấu hình tin nhắn."""
         self.msg_config = config
+
+    @classmethod
+    def set_global(cls, instance: "TelegramAlerts"):
+        """Đăng ký instance toàn cục. Gọi từ http_server.py khi TelegramBot khởi động."""
+        global _global_alerts
+        _global_alerts = instance
 
     # ------------------------------------------------------------------
     # Baby cry (text-only)

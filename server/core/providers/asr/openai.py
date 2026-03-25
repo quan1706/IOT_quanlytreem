@@ -15,7 +15,8 @@ class ASRProvider(ASRProviderBase):
         self.interface_type = InterfaceType.NON_STREAM
         self.api_key = config.get("api_key")
         self.api_url = config.get("base_url")
-        self.model = config.get("model_name")        
+        self.model = config.get("model_name")
+        self.language = config.get("language", None)  # Ngôn ngữ nhận diện (vd: "vi" cho tiếng Việt)
         self.output_dir = config.get("output_dir")
         self.delete_audio_file = delete_audio_file
 
@@ -39,13 +40,15 @@ class ASRProvider(ASRProviderBase):
                 "Authorization": f"Bearer {self.api_key}",
             }
             
-            # 使用data参数传递模型名称
+            # Truyền tên model và ngôn ngữ qua tham số data
             data = {
                 "model": self.model
             }
+            if self.language:
+                data["language"] = self.language  # Chỉ định ngôn ngữ để tránh nhận diện nhầm sang tiếng Anh
 
 
-            with open(file_path, "rb") as audio_file:  # 使用with语句确保文件关闭
+            with open(file_path, "rb") as audio_file:  # Dùng with để đảm bảo file được đóng
                 files = {
                     "file": audio_file
                 }
@@ -58,16 +61,16 @@ class ASRProvider(ASRProviderBase):
                     headers=headers
                 )
                 logger.bind(tag=TAG).debug(
-                    f"语音识别耗时: {time.time() - start_time:.3f}s | 结果: {response.text}"
+                    f"Thời gian nhận diện giọng nói: {time.time() - start_time:.3f}s | Kết quả: {response.text}"
                 )
 
             if response.status_code == 200:
                 text = response.json().get("text", "")
                 return text, file_path
             else:
-                raise Exception(f"API请求失败: {response.status_code} - {response.text}")
+                raise Exception(f"Yêu cầu API thất bại: {response.status_code} - {response.text}")
                 
         except Exception as e:
-            logger.bind(tag=TAG).error(f"语音识别失败: {e}")
+            logger.bind(tag=TAG).error(f"Nhận diện giọng nói thất bại: {e}")
             return "", None
         

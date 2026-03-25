@@ -111,11 +111,11 @@ async def process_intent_result(
                     )
 
                     # 构建带上下文的基础提示
-                    context_prompt = f"""当前时间：{current_time}
-                                        今天日期：{today_date} ({today_weekday})
-                                        今天农历：{lunar_date}
+                    context_prompt = f"""Thời gian hiện tại: {current_time}
+                                        Ngày hôm nay: {today_date} ({today_weekday})
+                                        Âm lịch hôm nay: {lunar_date}
 
-                                        请根据以上信息回答用户的问题：{original_text}"""
+                                        Hãy dựa vào thông tin trên để trả lời câu hỏi của người dùng: {original_text}"""
 
                     response = conn.intent.replyResult(context_prompt, original_text)
                     speak_txt(conn, response)
