@@ -1,24 +1,21 @@
-/*
- * ============================================================
- *  SMART BABY CARE - ESP32-CAM Streamer
- *  Mô tả: Firmware dành riêng cho ESP32-CAM để đẩy luồng video
- *          lên Dashboard qua MJPEG Relay.
- * ============================================================
- */
-
 #include "esp_camera.h"
 #include <WiFi.h>
+#include <WebSocketsClient.h>
+#include <ArduinoJson.h>
 #include <HTTPClient.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 
-// --- CẤU HÌNH WIFI (Sửa theo thông tin nhà bạn) ---
+// --- CẤU HÌNH WIFI ---
 const char* ssid = "Thành Đạt";
 const char* password = "123456789";
 
 // --- CẤU HÌNH SERVER ---
-// Thay đổi IP này thành IP của máy chạy Python Server
-const char* server_url = "http://172.20.10.11:8003/api/vision/frame";
+const char* server_ip = "172.20.10.3";
+const int   http_port = 8003;
+const int   ws_port   = 8000;
 
-// --- CẤU HÌNH CAMERA (AI-THINKER PINOUT) ---
+// --- CẤU HÌNH CAMERA (AI-THINKER) ---
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
 #define XCLK_GPIO_NUM      0
@@ -36,12 +33,56 @@ const char* server_url = "http://172.20.10.11:8003/api/vision/frame";
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
-void setup() {
-  Serial.begin(115200);
-  Serial.setDebugOutput(true);
-  Serial.println();
+// --- BIẾN TOÀN CỤC ---
+WebSocketsClient webSocket;
+bool trigger_hq_capture = false;
+const char* DEVICE_ID = "baby-cam-001";
 
-  // --- Cấu hình Camera ---
+void handlePreviewStream();
+void handleHQCapture();
+
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+  switch(type) {
+    case WStype_DISCONNECTED:
+      Serial.println("[WS] Disconnected!");
+      break;
+    case WStype_CONNECTED:
+      Serial.println("[WS] Connected!");
+      {
+        StaticJsonDocument<200> doc;
+        doc["type"] = "hello";
+        doc["device_id"] = DEVICE_ID;
+        doc["role"] = "camera";
+        String msg;
+        serializeJson(doc, msg);
+        webSocket.sendTXT(msg);
+      }
+      break;
+    case WStype_TEXT:
+      Serial.printf("[WS] Received: %s\n", payload);
+      {
+        StaticJsonDocument<200> doc;
+        DeserializationError error = deserializeJson(doc, payload);
+        if (!error) {
+          const char* type_str = doc["type"];
+          const char* cmd_str = doc["cmd"];
+          if (type_str && strcmp(type_str, "cmd") == 0 && cmd_str && (strcmp(cmd_str, "capture_hq") == 0 || strcmp(cmd_str, "capture_pose") == 0)) {
+            trigger_hq_capture = true;
+            Serial.println(">>> TRIGGER HQ CAPTURE!");
+          }
+        }
+      }
+      break;
+  }
+}
+
+void setup() {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); 
+  
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println("\n--- ESP32-CAM Starting (v2.1 Staggered) ---");
+  
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -61,13 +102,12 @@ void setup() {
   config.pin_sscb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
+  config.xclk_freq_hz = 10000000;
   config.pixel_format = PIXFORMAT_JPEG;
 
-  // Cấu hình chất lượng ảnh
   if(psramFound()){
-    config.frame_size = FRAMESIZE_QVGA; // 320x240 - Nhanh hơn và mượt hơn
-    config.jpeg_quality = 15;           // Tăng nén để truyền tải nhanh hơn
+    config.frame_size = FRAMESIZE_QVGA; 
+    config.jpeg_quality = 15;
     config.fb_count = 2;
   } else {
     config.frame_size = FRAMESIZE_QVGA; 
@@ -75,76 +115,133 @@ void setup() {
     config.fb_count = 1;
   }
 
-  // Khởi tạo camera
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x", err);
-    return;
+    Serial.printf("Camera init failed: 0x%x", err);
+  } else {
+    Serial.println("Camera Init Success.");
   }
 
-  // --- Kết nối WiFi ---
+  delay(2000);
+  
   WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
+  Serial.println("Connecting to WiFi...");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("\nWiFi connected");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  Serial.println("\nWiFi connected. IP: " + WiFi.localIP().toString());
+
+  // THÊM DEVICE-ID VÀO URL WEBSOCKET (BẮT BUỘC THEO SERVER LOGIC)
+  String ws_path = "/xiaozhi/v1/?device-id=" + String(DEVICE_ID);
+  webSocket.begin(server_ip, ws_port, ws_path);
+  webSocket.onEvent(webSocketEvent);
+  webSocket.setReconnectInterval(5000);
 }
 
 void loop() {
-  if (WiFi.status() != WL_CONNECTED) {
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) { delay(500); }
-  }
-
-  // Chụp ảnh
-  camera_fb_t * fb = esp_camera_fb_get();
-  if (!fb) {
-    Serial.println("Camera capture failed");
-    return;
-  }
-
-// --- Gửi ảnh lên Server (Manual Multipart POST với WiFiClient) ---
-  WiFiClient client;
-  if (!client.connect("172.20.10.11", 8003)) {
-    Serial.println("Connection to server failed");
-    esp_camera_fb_return( fb );
-    return;
-  }
-
-  String boundary = "---ESP32CAM-BOUNDARY---";
-  String head = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"image\"; filename=\"frame.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n";
-  String tail = "\r\n--" + boundary + "--\r\n";
-  uint32_t totalLen = head.length() + fb->len + tail.length();
-
-  client.println("POST /api/vision/frame HTTP/1.1");
-  client.println("Host: 172.20.10.11");
-  client.println("Content-Type: multipart/form-data; boundary=" + boundary);
-  client.print("Content-Length: ");
-  client.println(totalLen);
-  client.println();
-  client.print(head);
-  client.write(fb->buf, fb->len);
-  client.print(tail);
-
-  // Chờ phản hồi ngắn gọn
-  unsigned long timeout = millis();
-  while (client.available() == 0) {
-    if (millis() - timeout > 1000) {
-      Serial.println(">>> Client Timeout !");
-      client.stop();
-      esp_camera_fb_return(fb);
-      return;
+  webSocket.loop();
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    if (trigger_hq_capture) {
+      handleHQCapture();
+    } else {
+      handlePreviewStream();
     }
   }
+  delay(1);
+}
 
-  client.stop();
+void handlePreviewStream() {
+  camera_fb_t * fb = esp_camera_fb_get();
+  if (!fb) return;
+
+  WiFiClient client;
+  if (client.connect(server_ip, http_port)) {
+    String boundary = "---ESP32CAM-BOUNDARY---";
+    String head = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"image\"; filename=\"live.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n";
+    String tail = "\r\n--" + boundary + "--\r\n";
+    uint32_t totalLen = head.length() + fb->len + tail.length();
+
+    client.println("POST /api/vision/frame HTTP/1.1");
+    client.println("Host: " + String(server_ip));
+    client.println("Content-Type: multipart/form-data; boundary=" + boundary);
+    client.print("Content-Length: "); client.println(totalLen);
+    client.println();
+    client.print(head);
+    client.write(fb->buf, fb->len);
+    client.print(tail);
+    
+    // Đợi phản hồi ngắn từ server để debug
+    unsigned long timeout = millis();
+    while (client.available() == 0) {
+      if (millis() - timeout > 2000) {
+        Serial.println(">>> HTTTP Preview Timeout!");
+        client.stop();
+        esp_camera_fb_return(fb);
+        return;
+      }
+    }
+    String line = client.readStringUntil('\r');
+    if (line.indexOf("200") < 0) {
+      Serial.println(">>> HTTP Preview Error: " + line);
+    }
+    client.stop();
+  }
   esp_camera_fb_return(fb);
+}
 
-  // Điều chỉnh tốc độ khung hình
-  // Giảm delay xuống 10ms để đạt tốc độ mượt mà nhất có thể
-  delay(10); 
+void handleHQCapture() {
+  Serial.println("[CAPTURE] Starting HQ Capture...");
+  sensor_t * s = esp_camera_sensor_get();
+  if (!s) return;
+  
+  s->set_framesize(s, FRAMESIZE_XGA); 
+  s->set_quality(s, 10);
+  delay(500);
+
+  for(int i=0; i<3; i++) {
+    camera_fb_t * tmp = esp_camera_fb_get();
+    if(tmp) esp_camera_fb_return(tmp);
+    delay(200);
+  }
+
+  camera_fb_t * fb = esp_camera_fb_get();
+  if (fb) {
+    WiFiClient client;
+    if (client.connect(server_ip, http_port)) {
+      String boundary = "---HQ-BOUNDARY---";
+      String head = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"image\"; filename=\"hq_photo.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n";
+      String tail = "\r\n--" + boundary + "--\r\n";
+      uint32_t totalLen = head.length() + fb->len + tail.length();
+
+      client.println("POST /api/vision/hq_capture HTTP/1.1");
+      client.println("Host: " + String(server_ip));
+      client.println("Content-Type: multipart/form-data; boundary=" + boundary);
+      client.print("Content-Length: "); client.println(totalLen);
+      client.println();
+      client.print(head);
+      client.write(fb->buf, fb->len);
+      client.print(tail);
+      
+      unsigned long timeout = millis();
+      while (client.available() == 0) {
+        if (millis() - timeout > 5000) {
+          Serial.println(">>> HTTP HQ Timeout!");
+          client.stop();
+          esp_camera_fb_return(fb);
+          return;
+        }
+      }
+      String line = client.readStringUntil('\r');
+      Serial.println(">>> HTTP HQ Response: " + line);
+      client.stop();
+    }
+    esp_camera_fb_return(fb);
+  }
+
+  s->set_framesize(s, FRAMESIZE_QVGA);
+  s->set_quality(s, 15);
+  trigger_hq_capture = false;
+  Serial.println("[CAPTURE] Finished HQ Capture.");
 }
