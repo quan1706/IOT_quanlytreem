@@ -24,6 +24,8 @@ DASHBOARD_STATE = {
     "temp": 0.0,             # Nhiệt độ hiện tại
     "humidity": 0.0,         # Độ ẩm hiện tại
     "last_cry_time": 0,      # Thời gian cuối cùng báo động khóc (cooldown toàn cục)
+    "pose": "UNKNOWN",       # Tư thế bé gần nhất
+    "cry_status": False,     # True nếu phát hiện khóc trong vòng 60 giây gần nhất
 }
 
 MAX_HISTORY = 50   # Giới hạn số bản ghi lưu trong bộ nhớ
@@ -176,6 +178,46 @@ class DashboardUpdater:
         DASHBOARD_STATE["temp"] = temp
         DASHBOARD_STATE["humidity"] = humidity
         DashboardUpdater.add_system_log("Sensor", "update", {"t": temp, "h": humidity})
+        
+        # Ghi nhận vào lịch sử chart mỗi 10 phút (600s)
+        now = time.time()
+        if now - getattr(DashboardUpdater, "_last_chart_record", 0) > 600:
+            DashboardUpdater._last_chart_record = now
+            DashboardUpdater._record_chart_point(temp, humidity)
+
+    @staticmethod
+    def _record_chart_point(temp, hum):
+        """Lưu điểm dữ liệu mới vào data/chart_history.json (rolling window)."""
+        file_path = "data/chart_history.json"
+        try:
+            if os.path.exists(file_path):
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            else:
+                data = {"labels": [], "cry": [], "temp": [], "hum": []}
+
+            time_str = time.strftime("%H:%M", time.localtime())
+            
+            # Thêm điểm mới
+            data["labels"].append(time_str)
+            data["temp"].append(round(temp, 2))
+            data["hum"].append(round(hum, 1))
+            
+            # Cry value: lấy cường độ khóc cao nhất trong 10p qua (ví dụ)
+            # Ở đây ta lấy logic đơn giản: nếu cry_status là True thì coi như có khóc
+            cry_val = 500 if DASHBOARD_STATE.get("cry_status") else 50
+            data["cry"].append(cry_val)
+
+            # Giới hạn 144 điểm (tương đương 24h nếu 10p/điểm)
+            for key in ["labels", "temp", "hum", "cry"]:
+                if len(data[key]) > 144:
+                    data[key].pop(0)
+
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger = setup_logging()
+            logger.bind(tag=TAG).error(f"Lỗi ghi chart_history: {e}")
 
     @staticmethod
     def set_mode(mode: str):
@@ -191,6 +233,14 @@ class DashboardUpdater:
         status = "ON" if enabled else "OFF"
         logger.bind(tag=TAG).info(f"[MOCK MODE] Mock Data: {status}")
         DashboardUpdater.add_system_log("System", "mock_change", {"mock_mode": status})
+
+    @staticmethod
+    def update_pose(pose: str):
+        """Cập nhật tư thế bé gần nhất từ pose handler."""
+        DASHBOARD_STATE["pose"] = pose.upper() if pose else "UNKNOWN"
+        logger = setup_logging()
+        logger.bind(tag=TAG).info(f"[POSE UPDATE] Tư thế mới: {DASHBOARD_STATE['pose']}")
+        DashboardUpdater.add_system_log("Pose-Detection", "pose_update", {"pose": DASHBOARD_STATE["pose"]})
 
     @staticmethod
     def get_state() -> dict:

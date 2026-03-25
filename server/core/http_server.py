@@ -146,7 +146,11 @@ class SimpleHttpServer:
                         ),
                         web.get("/", self.dashboard_handler.handle_get_index),
                         web.get("/api/dashboard/state", self.dashboard_handler.handle_get_state),
+                        web.get("/api/dashboard/sensors", self.dashboard_handler.handle_get_sensors),
+                        web.get("/api/dashboard/chart", self.dashboard_handler.handle_get_chart),
                         web.post("/api/dashboard/mode", self.dashboard_handler.handle_post_mode),
+                        web.post("/api/dashboard/command", self.dashboard_handler.handle_post_command),
+                        web.post("/api/dashboard/chat", self.dashboard_handler.handle_post_chat),
                         web.post("/api/dashboard/apikey", self.dashboard_handler.handle_post_apikey),
                         
                         # Route Baby Care - gọi thẳng method nội bộ
