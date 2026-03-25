@@ -30,7 +30,7 @@ MAX_HISTORY = 50   # Giới hạn số bản ghi lưu trong bộ nhớ
 
 
 class DashboardUpdater:
-    """
+    """ 
     Tập trung mọi thao tác ghi vào DASHBOARD_STATE và logger server.
     """
 
