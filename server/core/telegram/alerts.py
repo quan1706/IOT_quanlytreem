@@ -6,6 +6,7 @@ Layer trên TelegramClient — compose nội dung rồi gọi client.send_*.
 """
 from config.logger import setup_logging
 from core.telegram.client import TelegramClient
+from core.telegram.menu_builder import get_token_limit_keyboard, get_ai_confirmation_keyboard
 
 TAG = "TelegramAlerts"
 
@@ -74,20 +75,17 @@ class TelegramAlerts:
         text = token_cfg.get("text", "⚠️ TOKEN LIMIT")
         btn_label = token_cfg.get("button", "⚙️ Dashboard")
         
-        reply_markup = {
-            "inline_keyboard": [
-                [{"text": btn_label, "url": f"http://{local_ip}:8003/"}]
-            ]
-        }
+        reply_markup = get_token_limit_keyboard(btn_label, local_ip)
         return await self.client.send_message(text=text, reply_markup=reply_markup)
 
     # ------------------------------------------------------------------
     # Startup notification
     # ------------------------------------------------------------------
     async def send_startup_message(self) -> bool:
-        """Gửi thông báo khi server khởi động xong."""
+        """Gửi thông báo khi server khởi động xong kèm menu interactive."""
+        from core.telegram.menu_builder import get_unified_inline_menu
         text = self.msg_config.get("alerts", {}).get("startup", {}).get("text", "✅ Bot Started")
-        return await self.client.send_message(text=text)
+        return await self.client.send_message(text=text, reply_markup=get_unified_inline_menu())
 
     # ------------------------------------------------------------------
     # AI confirmation (xác nhận hành động AI gợi ý)
@@ -102,13 +100,6 @@ class TelegramAlerts:
         btn_no = conf_cfg.get("btn_cancel", "❌ Cancel")
         tmpl = conf_cfg.get("text", "🤖 Suggestion: {reply_msg}")
 
-        reply_markup = {
-            "inline_keyboard": [
-                [
-                    {"text": btn_ok, "callback_data": f"ai_confirm_{intent}"},
-                    {"text": btn_no, "callback_data": f"ai_cancel_{intent}"},
-                ]
-            ]
-        }
+        reply_markup = get_ai_confirmation_keyboard(intent, btn_ok, btn_no)
         text = tmpl.format(reply_msg=reply_msg)
         return await self.client.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)

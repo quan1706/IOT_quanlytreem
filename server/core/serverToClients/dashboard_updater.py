@@ -16,6 +16,7 @@ TAG = "DashboardUpdater"
 # ──────────────────────────────────────────────────────────────────────────────
 DASHBOARD_STATE = {
     "mode": "manual",        # 'manual' (giám sát) hoặc 'auto' (tự động)
+    "mock_mode": False,      # True: dùng dữ liệu mẫu, False: dùng dữ liệu thật
     "cry_history": [],       # Danh sách sự kiện bé khóc
     "action_logs": [],       # Danh sách hành động từ Telegram / ESP32
     "ai_logs": [],           # Danh sách log AI đỗ dành (query, response, action, status)
@@ -182,6 +183,14 @@ class DashboardUpdater:
         logger = setup_logging()
         logger.bind(tag=TAG).info(f"[MODE CHANGE] Chế độ mới: {mode.upper()}")
         DashboardUpdater.add_system_log("System", "mode_change", {"mode": mode})
+
+    @staticmethod
+    def set_mock_mode(enabled: bool):
+        DASHBOARD_STATE["mock_mode"] = enabled
+        logger = setup_logging()
+        status = "ON" if enabled else "OFF"
+        logger.bind(tag=TAG).info(f"[MOCK MODE] Mock Data: {status}")
+        DashboardUpdater.add_system_log("System", "mock_change", {"mock_mode": status})
 
     @staticmethod
     def get_state() -> dict:

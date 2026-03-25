@@ -57,6 +57,20 @@ class TelegramBot:
         except Exception:
             pass
 
+        # Đăng ký hệ thống lệnh (Telegram Menu)
+        commands = [
+            {"command": "start", "description": "Bật Menu chính & Khởi động"},
+            {"command": "status", "description": "Xem trạng thái hệ thống"},
+            {"command": "help", "description": "Xem danh sách lệnh hướng dẫn"},
+            {"command": "baby_chart", "description": "Xem biểu đồ bé khóc"},
+            {"command": "bat_quat", "description": "Bật quạt ESP32"},
+            {"command": "tat_quat", "description": "Tắt quạt ESP32"},
+            {"command": "mode", "description": "Cài đặt chế độ (auto / manual)"},
+            {"command": "setkey", "description": "Thiết lập API Token Groq"},
+            {"command": "check_baby_pose", "description": "📸 Kiểm tra tư thế ngủ của bé"}
+        ]
+        await self.client.set_my_commands(commands)
+
         # Polling loop
         offset = 0
         while self._running:
