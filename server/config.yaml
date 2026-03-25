@@ -74,7 +74,7 @@ wakeup_words:
   - "baby guard"
 
 # MCP endpoint
-mcp_endpoint: your_mcp_endpoint_websocket_address
+# mcp_endpoint: your_mcp_endpoint_websocket_address
 
 # Context providers
 context_providers:

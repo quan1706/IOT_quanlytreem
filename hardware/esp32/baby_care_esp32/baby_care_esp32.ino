@@ -51,7 +51,7 @@ unsigned long lastServoStepTime = 0;
 const char* WIFI_SSID     = "Thành Đạt";           // Tên WiFi nhà bạn
 const char* WIFI_PASSWORD = "123456789";             // Mật khẩu WiFi (SỬA LẠI CHO ĐÚNG)
 
-const char* SERVER_IP     = "172.20.10.3";      // IP máy tính chạy Server (ĐÃ CẬP NHẬT)
+const char* SERVER_IP     = "192.168.0.75";      // IP máy tính chạy Server (ĐÃ CẬP NHẬT)
 const int   SERVER_PORT   = 8000;                   // Port WebSocket Server
 const char* SERVER_PATH   = "/xiaozhi/v1/";         // Đường dẫn WebSocket
 
@@ -79,7 +79,7 @@ const char* CLIENT_ID = "baby-care-client";
 #define I2S_SPK_LRC         27    // Left/Right Clock
 
 // --- Nút nhấn ---
-#define BTN_TALK            0     // GPIO 0 = Nút BOOT trên board (Nhấn giữ để nói)
+#define BTN_TALK            19    // Chuyển sang GPIO 19
 #define BTN_DEBOUNCE_MS     50    // Thời gian chống dội nút
 
 // --- LED ---
@@ -109,8 +109,8 @@ unsigned long fanBtnLastDebounce = 0;
   #include <Adafruit_SSD1306.h>
   #define SCREEN_WIDTH 128
   #define SCREEN_HEIGHT 64
-  #define OLED_SDA 4
-  #define OLED_SCL 15
+  #define OLED_SDA 21
+  #define OLED_SCL 22
   #define OLED_RESET -1
   Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #endif
@@ -127,9 +127,9 @@ unsigned long fanBtnLastDebounce = 0;
 //  Lưu ý: Module AI nhận diện tiếng khóc YAMNet sẽ chạy trên Server Python
 //  Phần này chỉ là bộ lọc sơ cấp ở phía ESP32
 // ============================================================
-#define CRY_DETECT_THRESHOLD    200     // Ngưỡng âm lượng để nghi là tiếng ồn/khóc (INMP441 trả về RMS nhỏ, tầm 300-600 là rất to)
-#define CRY_DETECT_DURATION_MS  1000    // Liên tục vượt ngưỡng bao lâu (ms) thì báo (giảm xuống 1s cho nhạy)
-#define CRY_CHECK_INTERVAL_MS   500     // Tần suất kiểm tra tiếng ồn
+#define CRY_DETECT_THRESHOLD    500     // Tăng ngưỡng lên 500 để bớt nhạy, tránh tiếng ồn nhỏ
+#define CRY_DETECT_DURATION_MS  1000    
+#define CRY_CHECK_INTERVAL_MS   500     
 
 // ============================================================
 //  CẤU HÌNH ĐO NHIỆT ĐỘ
@@ -379,22 +379,26 @@ void handleServerMessage(char* message) {
       currentState = STATE_IDLE;
     }
   }
-  // Server yêu cầu dừng nói
+  // Server trả lời kết quả nhận diện giọng nói (STT)
   else if (strcmp(type, "stt") == 0) {
     const char* text = doc["text"];
     if (text) {
       Serial.printf("[STT] Recognized: %s\n", text);
-      // Kiểm tra lệnh điều khiển từ giọng nói người dùng
       checkVoiceCommand(String(text));
     }
+    // Trả về IDLE sau khi nhận diện xong để có thể nhấn tiếp
+    if (currentState == STATE_THINKING) currentState = STATE_IDLE;
   }
-  // Server trả lời văn bản (LLM response)
+  // Server trả lời bằng văn bản (AI LLM)
   else if (strcmp(type, "llm") == 0) {
     const char* text = doc["text"];
     if (text) {
       Serial.printf("[LLM] AI says: %s\n", text);
-      // Kiểm tra lệnh điều khiển từ phản hồi AI
       checkVoiceCommand(String(text));
+    }
+    // Trả về IDLE sau khi AI phản hồi xong (đề phòng Server không gửi tts: stop)
+    if (currentState == STATE_THINKING || currentState == STATE_SPEAKING) {
+        currentState = STATE_IDLE;
     }
   }
   // Server gửi lệnh điều khiển thiết bị (Direct Command)
@@ -450,17 +454,17 @@ void checkVoiceCommand(String text) {
     return;
   }
 
-  // --- LỆNH LIÊN QUAN ĐẾN NÔI / VÕNG ---
+  // --- LỆNH LIÊN QUAN ĐẾN NÔI / VÕNG / NHẠC ---
   if (text.indexOf("nôi") >= 0 || text.indexOf("noi") >= 0 || 
       text.indexOf("võng") >= 0 || text.indexOf("vong") >= 0 || 
-      text.indexOf("ru") >= 0) {
+      text.indexOf("ru") >= 0 || text.indexOf("nhạc") >= 0 || text.indexOf("nhac") >= 0) {
     if (text.indexOf("tắt") >= 0 || text.indexOf("tat") >= 0 || 
         text.indexOf("dừng") >= 0 || text.indexOf("dung") >= 0 || 
         text.indexOf("ngừng") >= 0) {
-      Serial.println("[SERVO] >>> MATCHED! Tắt nôi!");
+      Serial.println("[SERVO] >>> MATCHED! Tắt nôi/nhạc!");
       stopCradle();
     } else {
-      Serial.println("[SERVO] >>> MATCHED! Bật nôi!");
+      Serial.println("[SERVO] >>> MATCHED! Bật nôi/nhạc!");
       startCradle();
     }
     return;
@@ -474,24 +478,7 @@ void checkVoiceCommand(String text) {
   }
 }
 
-// ============================================================
-//  TRÍCH XUẤT SỐ TỪ CHUỖI (ví dụ: "giảm âm lượng 50" → 50)
-// ============================================================
-int extractNumber(String text) {
-  String numStr = "";
-  for (int i = 0; i < text.length(); i++) {
-    char c = text.charAt(i);
-    if (c >= '0' && c <= '9') {
-      numStr += c;
-    } else if (numStr.length() > 0) {
-      break; // Đã tìm thấy số, dừng lại
-    }
-  }
-  if (numStr.length() > 0) {
-    return numStr.toInt();
-  }
-  return -1; // Không tìm thấy số
-}
+
 
 // ============================================================
 //  HÀM ĐƯA NÔI SỬ DỤNG TRẠNG THÁI (NON-BLOCKING)
@@ -500,11 +487,11 @@ void startCradle() {
   if (!isRockingCradle) {
     Serial.println("[SERVO] Đưa về mốc 90 độ và bắt đầu đưa nôi...");
     myServo.setPeriodHertz(50);
-    myServo.attach(SERVO_PIN, 500, 2400);
+    myServo.attach(SERVO_PIN, 600, 2300); // Cấu hình góc quay theo yêu cầu (600, 2300)
     
     // Bước 1: Đưa về tâm 90 độ làm mốc chuẩn
     myServo.write(90);
-    delay(500); // Chờ servo di chuyển về vị trí
+    delay(1000); // Chờ 1 giây theo code của user
     
     isRockingCradle = true;
     updateOLED();
@@ -516,7 +503,17 @@ void startCradle() {
 
 void stopCradle() {
   if (isRockingCradle) {
-    Serial.println("[SERVO] Dừng đưa nôi.");
+    Serial.println("[SERVO] Đưa nôi về vị trí giữa (90 độ) và dừng...");
+    
+    // Đảm bảo servo có điện để quay về
+    if (!myServo.attached()) {
+      myServo.attach(SERVO_PIN, 600, 2300);
+    }
+    
+    // Đưa nôi về góc trung tâm
+    myServo.write(90);
+    delay(500); // Chờ 0.5 giây để nôi xoay kịp về giữa
+    
     isRockingCradle = false;
     myServo.detach(); // Tắt xung PWM để servo không bị rè hoặc tốn điện
     updateOLED();
@@ -525,21 +522,16 @@ void stopCradle() {
 
 void updateCradle() {
   if (isRockingCradle) {
-    // Mỗi 12ms nhích 1 bước (nhanh hơn 15ms)
-    if (millis() - lastServoStepTime >= 12) {
+    // Chỉnh tốc độ tại đây: 20ms nhích 1 bước theo yêu cầu
+    if (millis() - lastServoStepTime >= 20) {
       lastServoStepTime = millis();
       
-      // Nhích 3 đơn vị (mạnh hơn 2 đơn vị)
-      servoPos += (3 * servoDirection);
+      servoPos += servoDirection;
       myServo.write(servoPos);
       
-      // Giới hạn quay qua quay lại quanh mốc 90 (biên độ 90 độ => từ 45 đến 135)
-      if (servoPos >= 135) {
-        servoPos = 135;
-        servoDirection = -1;
-      } else if (servoPos <= 45) {
-        servoPos = 45;
-        servoDirection = 1;
+      // Giới hạn quay từ 50 đến 130 (center 90, range 40)
+      if (servoPos >= 130 || servoPos <= 50) {
+        servoDirection = -servoDirection;
       }
     }
   }
@@ -684,6 +676,13 @@ void checkCryDetection() {
     sumSquares += (long)sampleBuffer[i] * sampleBuffer[i];
   }
   int rms = sqrt(sumSquares / numSamples);
+  // DEBUG MIC: Đã ẩn in log liên tục để màn hình Console đỡ rối sau khi test xong
+  /*
+  if (millis() % 2000 < 100) {
+    Serial.printf("[DEBUG MIC] RMS: %d | Nguong: %d | WS: %s\n", 
+                  rms, CRY_DETECT_THRESHOLD, wsConnected ? "CONNECTED" : "OFFLINE");
+  }
+  */
 
   // Kiểm tra vượt ngưỡng
   if (rms > CRY_DETECT_THRESHOLD) {
@@ -858,6 +857,20 @@ void updateOLED() {
     display.println("Quat: OFF");
   }
 
+  // TRẠNG THÁI MIC (MỚI THÊM ĐỂ KIỂM TRA PHẦN MỀM)
+  display.setCursor(0, 40);
+  display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // In ngược màu cho dễ thấy
+  if (currentState == STATE_LISTENING) {
+    display.println(" MIC: LISTENING... ");
+  } else if (currentState == STATE_CRY_DETECTED) {
+    display.println(" MIC: CRY DETECTED ");
+  } else if (currentState == STATE_THINKING) {
+    display.println(" MIC: THINKING... ");
+  } else {
+    display.setTextColor(SSD1306_WHITE);
+    display.println(" MIC: STANDBY ");
+  }
+
   display.display();
 #endif
 }
@@ -866,19 +879,37 @@ void updateOLED() {
 //  XỬ LÝ NÚT NHẤN (PUSH-TO-TALK)
 // ============================================================
 void handleButton() {
-  bool currentBtnState = (digitalRead(BTN_TALK) == LOW); // BOOT button active LOW
+  bool currentBtnState = (digitalRead(BTN_TALK) == LOW); // GND active LOW (GPIO 19)
 
   if (currentBtnState != btnPressed) {
     if (millis() - btnLastDebounce > BTN_DEBOUNCE_MS) {
       btnLastDebounce = millis();
       btnPressed = currentBtnState;
 
-      if (btnPressed && currentState == STATE_IDLE) {
-        // Bắt đầu thu âm
-        startListening();
-      } else if (!btnPressed && currentState == STATE_LISTENING) {
-        // Dừng thu âm, gửi lên server
-        stopListening();
+      // In Debug ra Serial để kiểm tra phần cứng
+      Serial.printf("[BUTTON] MIC Button: %s | State: %d | Server: %s\n", 
+                    btnPressed ? "PRESSED" : "RELEASED", currentState, wsConnected ? "ONLINE" : "OFFLINE");
+
+      if (btnPressed) {
+        if (!wsConnected) {
+           Serial.println("[BUTTON] LOI: Khong the thu am vi Server dang Offline!");
+           return;
+        }
+        // Cho phép nói bất kể đang IDLE, CRY_DETECTED, SPEAKING, CONNECTING hoặc THINKING
+        if (currentState == STATE_IDLE || currentState == STATE_CRY_DETECTED || 
+            currentState == STATE_SPEAKING || currentState == STATE_CONNECTING || 
+            currentState == STATE_THINKING) {
+          Serial.println("[BUTTON] Trigger startListening...");
+          startListening();
+          updateOLED(); 
+        }
+      } else {
+        // Nếu nhả nút khi đang thu âm
+        if (currentState == STATE_LISTENING) {
+          Serial.println("[BUTTON] Trigger stopListening...");
+          stopListening();
+          updateOLED(); // Cập nhật màn hình ngay lập tức
+        }
       }
     }
   }
@@ -955,20 +986,15 @@ void setup() {
   Serial.println("╚═══════════════════════════════════════╝");
   Serial.println();
 
-  // Cấu hình GPIO
-  pinMode(BTN_TALK, INPUT_PULLUP);
+  // Cấu hình GPIO Output
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
   pinMode(FAN_PIN, OUTPUT);
   digitalWrite(FAN_PIN, LOW); // Mặc định tắt quạt
-  pinMode(BTN_FAN, INPUT_PULLUP);
 
   // Khởi tạo Servo (chỉ cấu hình timer, KHÔNG attach để tránh servo bị rung)
   ESP32PWM::allocateTimer(0);
-  ESP32PWM::allocateTimer(1);
-  ESP32PWM::allocateTimer(2);
-  ESP32PWM::allocateTimer(3);
   Serial.println("[SERVO] Timer đã cấu hình. Servo sẽ attach khi cần.");
 
   // Khởi tạo cảm biến nhiệt độ (nếu có)
@@ -996,6 +1022,11 @@ void setup() {
   // Khởi tạo I2S Audio
   i2s_mic_init();
   i2s_spk_init();
+
+  // Khởi tạo Nút nhấn (Đặt sau I2S để tránh bị reset cấu hình pin)
+  pinMode(BTN_TALK, INPUT_PULLUP);
+  pinMode(BTN_FAN, INPUT_PULLUP);
+  Serial.println("[SYSTEM] Hardware buttons configured.");
 
   // Kết nối WiFi
   wifi_connect();
@@ -1025,9 +1056,9 @@ void loop() {
   if (currentState == STATE_LISTENING || currentState == STATE_CRY_DETECTED) {
     recordAndSendAudio();
     
-    // Nếu ở chế độ bắt tiếng ồn, tự động dừng sau 5 giây
-    if (currentState == STATE_CRY_DETECTED && (millis() - cryStartTime > 5000)) {
-       Serial.println("[CRY] Finished 5s recording. Asking AI...");
+    // Nếu ở chế độ bắt tiếng ồn, tự động dừng sau 3 giây
+    if (currentState == STATE_CRY_DETECTED && (millis() - cryStartTime > 3000)) {
+       Serial.println("[CRY] Finished 3s recording. Asking AI...");
        currentState = STATE_THINKING;
        digitalWrite(LED_PIN, LOW);
        

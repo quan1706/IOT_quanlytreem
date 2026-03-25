@@ -20,16 +20,16 @@ class DashboardHandler:
         self.config = config
         self.logger = setup_logging()
 
-        self.current_key = "Chưa có"
+        self.current_key_llm = "Chưa có"
+        self.current_key_asr = "Chưa có"
         try:
-            # Ưu tiên lấy từ GroqLLM trước
-            val = self.config.get("LLM", {}).get("GroqLLM", {}).get("api_key", "")
-            if not val:
-                # Nếu không có, thử lấy từ GroqASR (Whisper)
-                val = self.config.get("ASR", {}).get("GroqASR", {}).get("api_key", "")
-            
-            if val:
-                self.current_key = val[:10] + "..." + val[-4:]
+            val_llm = self.config.get("LLM", {}).get("GroqLLM", {}).get("api_key", "")
+            if val_llm:
+                self.current_key_llm = val_llm[:10] + "..." + val_llm[-4:]
+                
+            val_asr = self.config.get("ASR", {}).get("GroqWhisper", {}).get("api_key", "")
+            if val_asr:
+                self.current_key_asr = val_asr[:10] + "..." + val_asr[-4:]
         except Exception:
             pass
 
@@ -128,11 +128,13 @@ class DashboardHandler:
                 <div class="card" style="border-left: 5px solid #f44336;">
                     <h2>⚙ Cài đặt Groq API Key</h2>
                     <p style="color: #aaa; font-size: 0.9em;">
-                        Nếu hệ thống báo <b>Rate limit reached</b>, hãy dán API Key (gsk_...) mới vào đây.
+                        Tách riêng 2 khóa API để tránh lỗi Rate Limit. Bạn cần tạo 2 mã riêng biệt tại web Groq.
                     </p>
-                    <p>Key hiện tại: <code>{self.current_key}</code></p>
-                    <input type="text" id="apiKeyInput" placeholder="Nhập Groq API Key mới (bắt đầu bằng gsk_...)">
-                    <button class="btn btn-save" onclick="saveApiKey()">Cập Nhật API Key Mới</button>
+                    <p>Key LLM (Bộ não suy nghĩ): <code>{self.current_key_llm}</code></p>
+                    <input type="text" id="apiKeyLLM" placeholder="Nhập API Key LLM mới (tuỳ chọn)">
+                    <p style="margin-top:10px;">Key ASR (Nghe giọng nói): <code>{self.current_key_asr}</code></p>
+                    <input type="text" id="apiKeyASR" placeholder="Nhập API Key ASR mới (tuỳ chọn)">
+                    <button class="btn btn-save" onclick="saveApiKeys()">Cập Nhật Các Key Đã Nhập</button>
                     <p id="apiMessage" style="color: #4CAF50; display: none; margin-top: 10px;">
                         Lưu thành công! Vui lòng reset lại Server Python nếu bạn đang gọi Voice.
                     </p>
@@ -271,16 +273,27 @@ class DashboardHandler:
                     fetchState();
                 }}
 
-                async function saveApiKey() {{
-                    let key = document.getElementById('apiKeyInput').value;
-                    if(!key.startsWith('gsk_')) {{
-                        alert('API Key không hợp lệ! Vui lòng nhập key bắt đầu bằng chữ gsk_');
+                async function saveApiKeys() {{
+                    let keyLLM = document.getElementById('apiKeyLLM').value.trim();
+                    let keyASR = document.getElementById('apiKeyASR').value.trim();
+                    if(keyLLM === '' && keyASR === '') {{
+                        alert('Vui lòng nhập ít nhất 1 API key mới!');
                         return;
                     }}
+                    let payload = {{}};
+                    if(keyLLM.length > 0) {{
+                        if(!keyLLM.startsWith('gsk_')) {{ alert('Key LLM phải bắt đầu bằng gsk_'); return; }}
+                        payload.api_key_llm = keyLLM;
+                    }}
+                    if(keyASR.length > 0) {{
+                        if(!keyASR.startsWith('gsk_')) {{ alert('Key ASR phải bắt đầu bằng gsk_'); return; }}
+                        payload.api_key_asr = keyASR;
+                    }}
+                    
                     let res = await fetch('/api/dashboard/apikey', {{
                         method: 'POST',
                         headers: {{'Content-Type': 'application/json'}},
-                        body: JSON.stringify({{api_key: key}})
+                        body: JSON.stringify(payload)
                     }});
                     if(res.ok) {{
                         document.getElementById('apiMessage').style.display = 'block';
@@ -310,21 +323,27 @@ class DashboardHandler:
         DashboardUpdater.set_mode(new_mode)
         return web.json_response({"success": True, "mode": DASHBOARD_STATE["mode"]})
 
-    def update_api_key(self, new_key):
+    def update_api_keys(self, new_key_llm, new_key_asr):
         try:
             config_path = "data/.config.yaml"
             with open(config_path, "r", encoding="utf-8") as f:
                 content = f.read()
-            updated_content = re.sub(r"api_key:\s*gsk_\w+", f"api_key: {new_key}", content)
+
+            if new_key_llm:
+                content = re.sub(r"(GroqLLM:[\s\S]*?api_key:\s*)gsk_\w+", r"\g<1>" + new_key_llm, content)
+            if new_key_asr:
+                content = re.sub(r"(GroqWhisper:[\s\S]*?api_key:\s*)gsk_\w+", r"\g<1>" + new_key_asr, content)
+
             with open(config_path, "w", encoding="utf-8") as f:
-                f.write(updated_content)
+                f.write(content)
 
-            if "LLM" in self.config and "GroqLLM" in self.config["LLM"]:
-                self.config["LLM"]["GroqLLM"]["api_key"] = new_key
-            if "ASR" in self.config and "GroqWhisper" in self.config["ASR"]:
-                self.config["ASR"]["GroqWhisper"]["api_key"] = new_key
+            if new_key_llm and "LLM" in self.config and "GroqLLM" in self.config["LLM"]:
+                self.config["LLM"]["GroqLLM"]["api_key"] = new_key_llm
+                self.current_key_llm = new_key_llm[:10] + "..." + new_key_llm[-4:]
+            if new_key_asr and "ASR" in self.config and "GroqWhisper" in self.config["ASR"]:
+                self.config["ASR"]["GroqWhisper"]["api_key"] = new_key_asr
+                self.current_key_asr = new_key_asr[:10] + "..." + new_key_asr[-4:]
 
-            self.current_key = new_key[:10] + "..." + new_key[-4:]
             return True
         except Exception as e:
             self.logger.bind(tag=TAG).error(f"Lỗi cập nhật api key: {e}")
@@ -332,14 +351,14 @@ class DashboardHandler:
 
     async def handle_post_apikey(self, request):
         data = await request.json()
-        new_key = data.get("api_key", "").strip()
-        if new_key.startswith("gsk_"):
-            if self.update_api_key(new_key):
+        new_key_llm = data.get("api_key_llm", "").strip()
+        new_key_asr = data.get("api_key_asr", "").strip()
+
+        if new_key_llm or new_key_asr:
+            if self.update_api_keys(new_key_llm, new_key_asr):
                 return web.json_response({"success": True})
-            return web.json_response(
-                {"success": False, "error": "Lỗi quá trình lưu cấu hình"}, status=500
-            )
-        return web.json_response({"success": False, "error": "Invalid API key"})
+            return web.json_response({"success": False, "error": "Lỗi quá trình lưu cấu hình"}, status=500)
+        return web.json_response({"success": False, "error": "No API key provided"})
 
     @staticmethod
     def add_token_alert():

@@ -52,7 +52,8 @@ class Dialogue:
 
     def update_system_message(self, new_content: str):
         """Cập nhật hoặc thêm tin nhắn hệ thống"""
-        # Tìm tin nhắn hệ thống đầu tiên        system_msg = next((msg for msg in self.dialogue if msg.role == "system"), None)
+        # Tìm tin nhắn hệ thống đầu tiên
+        system_msg = next((msg for msg in self.dialogue if msg.role == "system"), None)
         if system_msg:
             system_msg.content = new_content
         else:

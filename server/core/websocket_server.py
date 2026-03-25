@@ -60,6 +60,16 @@ class WebSocketServer:
         self._intent = modules["intent"] if "intent" in modules else None
         self._memory = modules["memory"] if "memory" in modules else None
 
+        # Pre-load YAMNet để tránh delay 3-5 giây lần đầu khi có cry_detect
+        try:
+            from core.providers.classifier.yamnet_classifier import YamnetClassifier
+            from core.connection import ConnectionHandler
+            yamnet_instance = YamnetClassifier()
+            ConnectionHandler.yamnet = yamnet_instance
+            self.logger.bind(tag=TAG).info("YAMNet đã được pre-load thành công lúc khởi động server.")
+        except Exception as e:
+            self.logger.bind(tag=TAG).warning(f"Không thể pre-load YAMNet, sẽ khởi tạo lần đầu khi dùng: {e}")
+
         auth_config = self.config["server"].get("auth", {})
         self.auth_enable = auth_config.get("enabled", False)
         # Danh sách thiết bị được phép trắng

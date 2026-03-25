@@ -132,6 +132,11 @@ class TelegramRouter:
             await self._cmd_help(chat_id, bot_username=bot_username)
             return
 
+        # -- /menu ---------------------------------------------------------
+        if clean_text.startswith("/menu") or clean_text.lower() == "menu":
+            await self._cmd_menu(chat_id)
+            return
+
         # -- /status -------------------------------------------------------
         if clean_text.startswith("/status"):
             await self._cmd_status(chat_id, DASHBOARD_STATE)
@@ -283,6 +288,14 @@ class TelegramRouter:
         tmpl = self.msg_config.get("commands", {}).get("welcome", {}).get("text", "🍼 Welcome")
         msg = (prefix + "\n\n" if prefix else "") + tmpl
         await self.client.send_message(chat_id, msg)
+
+    async def _cmd_menu(self, chat_id, prefix: str = ""):
+        """Hiển thị menu điều khiển bằng nút bấm (Inline Keyboard)."""
+        from core.serverToClients.baby_actions import BabyCareAction
+        
+        reply_markup = BabyCareAction.get_inline_keyboard(cols=2)
+        msg = (prefix + "\n\n" if prefix else "") + "🎛 **BẢNG ĐIỀU KHIỂN NHANH:**\nChọn thiết bị bạn muốn điều khiển:"
+        await self.client.send_message(chat_id, msg, reply_markup=reply_markup)
 
     async def _cmd_help(self, chat_id, prefix: str = "", bot_username: str = ""):
         """Hướng dẫn sử dụng."""

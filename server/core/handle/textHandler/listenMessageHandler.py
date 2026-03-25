@@ -29,7 +29,13 @@ class ListenTextMessageHandler(TextMessageHandler):
                 f"客户端拾音模式：{conn.client_listen_mode}"
             )
         if msg_json["state"] == "start":
-            # 设备从播放模式切回录音模式,清除所有音频状态和缓冲区
+            # Nếu TTS đang phát (vd: AI đang dỗ bé), abort ngay khi user nhấn nút
+            # Điều này cho phép user ngắt lời AI bất kỳ lúc nào bằng nút nhấn
+            if conn.client_is_speaking:
+                from core.handle.abortHandle import handleAbortMessage
+                conn.logger.bind(tag=TAG).info("[PTT] Nhấn nút trong khi TTS đang phát → Abort TTS")
+                await handleAbortMessage(conn)
+            # Reset audio buffer để chuẩn bị ghi âm mới
             conn.reset_audio_states()
         elif msg_json["state"] == "stop":
             conn.client_voice_stop = True
@@ -74,6 +80,24 @@ class ListenTextMessageHandler(TextMessageHandler):
                                 # Vẫn cần giải phóng ESP32
                                 await send_tts_message(conn, "stop", None)
                                 return
+
+                            # Gửi Telegram alert (cho cả 2 mode, fire-and-forget)
+                            try:
+                                import time as _time
+                                from core.telegram.alerts import _global_alerts
+                                if _global_alerts:
+                                    time_str_alert = _time.strftime("%H:%M:%S", _time.localtime())
+                                    asyncio.create_task(
+                                        _global_alerts.send_cry_alert(
+                                            message="YAMNet phát hiện bé đang khóc!",
+                                            time_str=time_str_alert,
+                                            current_mode=DASHBOARD_STATE["mode"],
+                                        )
+                                    )
+                                else:
+                                    conn.logger.bind(tag=TAG).debug("Telegram chưa khởi tạo, bỏ qua alert")
+                            except Exception as tg_err:
+                                conn.logger.bind(tag=TAG).warning(f"Gửi Telegram alert thất bại (không nghẽn): {tg_err}")
 
                             if DASHBOARD_STATE["mode"] == "auto":
                                 # Tự động an ủi bé

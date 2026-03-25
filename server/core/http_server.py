@@ -150,7 +150,10 @@ class SimpleHttpServer:
                 
                 # Khởi động Telegram Bot (từ package mới)
                 from core.telegram import TelegramBot
+                from core.telegram.alerts import TelegramAlerts
                 self._telegram_bot = TelegramBot(self.config, self.dashboard_handler)
+                # Đăng ký global alerts instance để listenMessageHandler có thể gửi cry alert
+                TelegramAlerts.set_global(self._telegram_bot.alerts)
                 asyncio.create_task(self._telegram_bot.start())
 
                 # Duy trì dịch vụ hoạt động
