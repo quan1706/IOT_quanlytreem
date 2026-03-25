@@ -196,8 +196,8 @@ void handleHQCapture() {
   sensor_t * s = esp_camera_sensor_get();
   if (!s) return;
   
-  s->set_framesize(s, FRAMESIZE_XGA); 
-  s->set_quality(s, 10);
+  s->set_framesize(s, FRAMESIZE_VGA); 
+  s->set_quality(s, 20);
   delay(500);
 
   for(int i=0; i<3; i++) {
