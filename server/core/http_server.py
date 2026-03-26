@@ -182,6 +182,49 @@ class SimpleHttpServer:
                 pass
         self._visualizers.clear()
 
+    async def _handle_mjpeg_push(self, request):
+        """
+        Nhận luồng MJPEG liên tục từ ESP32-CAM và đẩy đến các visualizers.
+        """
+        import time
+        self.logger.bind(tag=TAG).info("Bắt đầu nhận luồng MJPEG đẩy từ ESP32-CAM")
+        
+        try:
+            buffer = b""
+            async for chunk in request.content.iter_chunked(4096):
+                if time.time() < self.hq_priority_until:
+                    return web.Response(status=503)
+                    
+                buffer += chunk
+                
+                # Parse robustly using JPEG SOI (\xff\xd8) and EOI (\xff\xd9) markers
+                while True:
+                    start_idx = buffer.find(b"\xff\xd8")
+                    if start_idx == -1:
+                        break
+                        
+                    end_idx = buffer.find(b"\xff\xd9", start_idx)
+                    if end_idx == -1:
+                        break
+                        
+                    # Extract the JPEG frame
+                    image_bytes = buffer[start_idx:end_idx+2]
+                    buffer = buffer[end_idx+2:]
+                    
+                    if len(image_bytes) > 100:
+                        asyncio.create_task(self._broadcast_frame(image_bytes))
+                        
+                # Prevent buffer bloat 
+                if len(buffer) > 1024 * 512:
+                    buffer = b""
+                    
+        except asyncio.CancelledError:
+            self.logger.bind(tag=TAG).info("Camera MJPEG stream cancelled")
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi đọc stream MJPEG: {e}")
+            
+        return web.Response(status=200)
+
     async def _handle_frame(self, request):
         """
         POST /api/vision/frame — Chấp nhận frame ảnh từ ESP32-CAM (Cực kỳ linh hoạt).
@@ -423,6 +466,7 @@ class SimpleHttpServer:
                         # Route Baby Care
                         web.post("/api/cry", self._handle_cry),
                         web.post("/api/vision/frame", self._handle_frame),
+                        web.post("/api/vision/mjpeg_push", self._handle_mjpeg_push),
                         web.get("/api/vision/stream", self.handle_stream),
                         web.post("/api/vision/pose", self.pose_handler.handle_post),
                         web.post("/api/vision/log", self._handle_vision_log),

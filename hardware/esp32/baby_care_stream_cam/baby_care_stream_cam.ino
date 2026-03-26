@@ -35,6 +35,7 @@ const int   ws_port   = 8000;
 
 // --- BIẾN TOÀN CỤC ---
 WebSocketsClient webSocket;
+WiFiClient streamClient;
 bool trigger_hq_capture = false;
 const char* DEVICE_ID = "baby-cam-001";
 
@@ -153,57 +154,54 @@ void loop() {
 }
 
 void handlePreviewStream() {
+  if (!streamClient.connected()) {
+    Serial.println("Reconnecting MJPEG Stream...");
+    if (!streamClient.connect(server_ip, http_port)) {
+      delay(500);
+      return;
+    }
+    String boundary = "espframe";
+    streamClient.println("POST /api/vision/mjpeg_push HTTP/1.1");
+    streamClient.println("Host: " + String(server_ip));
+    streamClient.println("Content-Type: multipart/x-mixed-replace; boundary=" + boundary);
+    streamClient.println("Connection: keep-alive");
+    streamClient.println();
+    Serial.println("MJPEG Stream connected!");
+  }
+
   camera_fb_t * fb = esp_camera_fb_get();
   if (!fb) return;
 
-  WiFiClient client;
-  if (client.connect(server_ip, http_port)) {
-    String boundary = "---ESP32CAM-BOUNDARY---";
-    String head = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"image\"; filename=\"live.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n";
-    String tail = "\r\n--" + boundary + "--\r\n";
-    uint32_t totalLen = head.length() + fb->len + tail.length();
-
-    client.println("POST /api/vision/frame HTTP/1.1");
-    client.println("Host: " + String(server_ip));
-    client.println("Content-Type: multipart/form-data; boundary=" + boundary);
-    client.print("Content-Length: "); client.println(totalLen);
-    client.println();
-    client.print(head);
-    client.write(fb->buf, fb->len);
-    client.print(tail);
-    
-    // Đợi phản hồi ngắn từ server để debug
-    unsigned long timeout = millis();
-    while (client.available() == 0) {
-      if (millis() - timeout > 2000) {
-        Serial.println(">>> HTTTP Preview Timeout!");
-        client.stop();
-        esp_camera_fb_return(fb);
-        return;
-      }
-    }
-    String line = client.readStringUntil('\r');
-    if (line.indexOf("200") < 0) {
-      Serial.println(">>> HTTP Preview Error: " + line);
-    }
-    client.stop();
-  }
+  String boundary = "espframe";
+  String head = "--" + boundary + "\r\nContent-Type: image/jpeg\r\nContent-Length: " + String(fb->len) + "\r\n\r\n";
+  String tail = "\r\n";
+  
+  streamClient.print(head);
+  streamClient.write(fb->buf, fb->len);
+  streamClient.print(tail);
+  
   esp_camera_fb_return(fb);
+  delay(10);
 }
 
 void handleHQCapture() {
   Serial.println("[CAPTURE] Starting HQ Capture...");
+  
+  if (streamClient.connected()) {
+    streamClient.stop();
+  }
+
   sensor_t * s = esp_camera_sensor_get();
   if (!s) return;
   
   s->set_framesize(s, FRAMESIZE_VGA); 
-  s->set_quality(s, 20);
-  delay(500);
+  s->set_quality(s, 10);
+  delay(300);
 
   for(int i=0; i<3; i++) {
     camera_fb_t * tmp = esp_camera_fb_get();
     if(tmp) esp_camera_fb_return(tmp);
-    delay(200);
+    delay(100);
   }
 
   camera_fb_t * fb = esp_camera_fb_get();
