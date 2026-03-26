@@ -48,9 +48,22 @@ class PoseHandler(BaseHandler):
                 self.logger.bind(tag=TAG).error("Chưa cấu hình Gemini API Key.")
                 return web.json_response({"success": False, "error": "Missing API Key"}, status=500)
 
+            # Chạy nền phân tích để phản hồi HTTP ngay lập tức (tránh ESP32 timeout)
+            asyncio.create_task(self._process_pose_background(image_bytes))
+
+            return web.json_response({
+                "success": True, 
+                "message": "Image received. Processing in background."
+            })
+
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"Lỗi xử lý pose: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+
+    async def _process_pose_background(self, image_bytes: bytes):
+        try:
             from core.serverToClients import DashboardUpdater
             
-            # Gọi Gemini API ngoại tuyến qua run_in_executor để không block event loop
             loop = asyncio.get_event_loop()
             result_text = await loop.run_in_executor(None, self._analyze_image_sync, image_bytes)
             
@@ -70,25 +83,13 @@ class PoseHandler(BaseHandler):
                     asyncio.create_task(self._telegram_alerts.send_photo_alert(image_bytes, caption))
             else:
                 self.logger.bind(tag=TAG).info("✅ Trẻ đang nằm ngửa (SUPINE) hoặc an toàn.")
-
-            return web.json_response({
-                "success": True, 
-                "pose": "PRONE" if is_prone else "SUPINE",
-                "raw_response": result_text
-            })
-
+                
         except Exception as e:
-            self.logger.bind(tag=TAG).error(f"Lỗi xử lý pose: {e}")
+            self.logger.bind(tag=TAG).error(f"Lỗi xử lý nền pose: {e}")
             if hasattr(self, '_telegram_alerts') and self._telegram_alerts:
-                # Gửi cảnh báo lỗi lên Telegram
                 safe_error = escape_markdown(str(e))
                 caption = f"📸 *ẢNH LỖI PHÂN TÍCH (POSE)*\nKhông thể phân tích tư thế AI.\nLỗi: {safe_error}"
-                # Lấy dữ liệu ảnh từ request nếu có thể
-                try: 
-                    # Note: image_bytes might not be defined if error happened early
-                    pass 
-                except: pass
-            return web.json_response({"success": False, "error": str(e)}, status=500)
+                asyncio.create_task(self._telegram_alerts.send_photo_alert(image_bytes, caption))
 
     def _analyze_image_sync(self, image_bytes: bytes) -> str:
         """Hàm đồng bộ gọi Gemini SDK để phân tích ảnh."""

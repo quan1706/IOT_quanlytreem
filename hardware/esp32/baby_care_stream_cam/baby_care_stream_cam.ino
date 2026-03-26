@@ -37,6 +37,7 @@ const int   ws_port   = 8000;
 WebSocketsClient webSocket;
 WiFiClient streamClient;
 bool trigger_hq_capture = false;
+String current_capture_type = "hq_capture";
 const char* DEVICE_ID = "baby-cam-001";
 
 void handlePreviewStream();
@@ -71,7 +72,13 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
           const char* cmd_str = doc["cmd"];
           if (type_str && strcmp(type_str, "cmd") == 0 && cmd_str && (strcmp(cmd_str, "capture_hq") == 0 || strcmp(cmd_str, "capture_pose") == 0)) {
             trigger_hq_capture = true;
-            Serial.println(">>> TRIGGER HQ CAPTURE!");
+            if (strcmp(cmd_str, "capture_pose") == 0) {
+              current_capture_type = "pose";
+            } else {
+              current_capture_type = "hq_capture";
+            }
+            Serial.print(">>> TRIGGER CAPTURE: ");
+            Serial.println(current_capture_type);
           }
         }
       }
@@ -216,7 +223,7 @@ void handleHQCapture() {
       String tail = "\r\n--" + boundary + "--\r\n";
       uint32_t totalLen = head.length() + fb->len + tail.length();
 
-      client.println("POST /api/vision/hq_capture HTTP/1.1");
+      client.println("POST /api/vision/" + current_capture_type + " HTTP/1.1");
       client.println("Host: " + String(server_ip));
       client.println("Content-Type: multipart/form-data; boundary=" + boundary);
       client.print("Content-Length: "); client.println(totalLen);
@@ -231,6 +238,7 @@ void handleHQCapture() {
           Serial.println(">>> HTTP HQ Timeout!");
           client.stop();
           esp_camera_fb_return(fb);
+          trigger_hq_capture = false;
           return;
         }
       }

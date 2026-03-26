@@ -208,8 +208,8 @@ LLM:
     api_key: YOUR_GROQ_API_KEY
   GeminiLLM:
     type: gemini
-    api_key: "YOUR_GEMINI_API_KEY"
-    model_name: "gemini-1.5-flash"
+    api_key: ""
+    model_name: "gemini-2.5-flash"
     http_proxy: ""
     https_proxy: ""
   OllamaLLM:

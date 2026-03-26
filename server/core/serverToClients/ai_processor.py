@@ -179,11 +179,12 @@ class AIProcessor:
             config = config_or_api_key
 
         llm_cfg = config.get("LLM", {}).get("GeminiLLM", {})
-        api_key  = llm_cfg.get("api_key", "")
+        import os
+        api_key  = os.getenv("GEMINI_API_KEY", llm_cfg.get("api_key", ""))
         model_name = llm_cfg.get("model_name", "gemini-2.0-flash")
 
         if not api_key or "your" in api_key.lower():
-            return "Tiểu Bảo AI: Chưa cấu hình GeminiLLM API key."
+            return "Tiểu Bảo AI: Chưa cấu hình GeminiLLM API key (trong config.yaml hoặc ENV)."
 
         period_text = f"{days} ngày qua" if days > 1 else "24 giờ qua"
         prompt = AIProcessor._load_prompt(
@@ -193,21 +194,35 @@ class AIProcessor:
         )
 
         gen_cfg = GenerationConfig(
-            max_output_tokens=1200,
+            max_output_tokens=2048,
             temperature=0.75,
         )
 
         def _call_sdk():
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel(model_name)
-            resp = model.generate_content(prompt, generation_config=gen_cfg)
-            return resp.text.strip()
+            # Thêm safety_settings để tránh Gemini cắt ngang phản hồi do hiểu nhầm context
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ]
+            resp = model.generate_content(prompt, generation_config=gen_cfg, safety_settings=safety_settings)
+            
+            # Debug log độ dài phản hồi
+            full_text = resp.text.strip()
+            setup_logging().bind(tag=TAG).info(f"Gemini Response Length: {len(full_text)} characters")
+            return full_text
 
         # Chạy SDK đồng bộ trong thread pool, retry tối đa 3 lần nếu 429
         last_err = None
         for attempt in range(3):
             try:
                 result = await asyncio.to_thread(_call_sdk)
+                if len(result) < 50:
+                    setup_logging().bind(tag=TAG).warning(f"AI response too short ({len(result)} chars), attempt {attempt+1}")
+                    if attempt < 2: continue # Thử lại nếu quá ngắn
                 return result
             except Exception as e:
                 last_err = e
