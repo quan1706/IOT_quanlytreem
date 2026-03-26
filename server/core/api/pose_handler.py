@@ -4,7 +4,7 @@ import asyncio
 from aiohttp import web
 from config.logger import setup_logging
 from core.api.base_handler import BaseHandler
-from core.utils.util import is_valid_image_file
+from core.utils.util import is_valid_image_file, escape_markdown
 import google.generativeai as genai
 
 TAG = "PoseHandler"
@@ -79,6 +79,15 @@ class PoseHandler(BaseHandler):
 
         except Exception as e:
             self.logger.bind(tag=TAG).error(f"Lỗi xử lý pose: {e}")
+            if hasattr(self, '_telegram_alerts') and self._telegram_alerts:
+                # Gửi cảnh báo lỗi lên Telegram
+                safe_error = escape_markdown(str(e))
+                caption = f"📸 *ẢNH LỖI PHÂN TÍCH (POSE)*\nKhông thể phân tích tư thế AI.\nLỗi: {safe_error}"
+                # Lấy dữ liệu ảnh từ request nếu có thể
+                try: 
+                    # Note: image_bytes might not be defined if error happened early
+                    pass 
+                except: pass
             return web.json_response({"success": False, "error": str(e)}, status=500)
 
     def _analyze_image_sync(self, image_bytes: bytes) -> str:

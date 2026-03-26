@@ -1,12 +1,13 @@
 import asyncio
 from aiohttp import web
 from config.logger import setup_logging
+from core.utils.util import escape_markdown
 from core.api.ota_handler import OTAHandler
 from core.api.vision_handler import VisionHandler
 from core.api.dashboard_handler import DashboardHandler
 from core.api.pose_handler import PoseHandler
 
-BABY_POSE_CHECK_INTERVAL_SECONDS = 300  # 5 phút một lần để check baby pose
+BABY_POSE_CHECK_INTERVAL_SECONDS = 600  # 10 phút một lần để check baby pose
 
 TAG = __name__
 
@@ -359,10 +360,12 @@ class SimpleHttpServer:
                             caption = "✅ *TƯ THẾ BÉ AN TOÀN*\n\nHệ thống AI xác nhận bé đang nằm ngửa/an toàn (SUPINE)."
                     except Exception as ai_e:
                         self.logger.bind(tag=TAG).error(f"Lỗi khi gọi Gemini từ HQ: {ai_e}")
+                        # Escape error message to avoid Markdown parsing issues
+                        safe_error = escape_markdown(str(ai_e))
                         caption = (
                             f"📸 *ẢNH LỖI PHÂN TÍCH*\n"
                             f"Đã chụp ảnh HQ nhưng không thể phân tích tư thế AI.\n"
-                            f"Lỗi: {ai_e}"
+                            f"Lỗi: {safe_error}"
                         )
                 else:
                     caption = (
@@ -373,8 +376,11 @@ class SimpleHttpServer:
                         f"Thời gian: {time.strftime('%H:%M:%S')}"
                     )
                 
-                asyncio.create_task(self._telegram_bot.alerts.send_photo_alert(image_bytes, caption))
-                self.logger.bind(tag=TAG).info("🚀 [HQ] Đã đẩy task gửi Telegram")
+                if is_prone or "LỖI" in caption:
+                    asyncio.create_task(self._telegram_bot.alerts.send_photo_alert(image_bytes, caption))
+                    self.logger.bind(tag=TAG).info("🚀 [HQ] Đã đẩy task gửi cảnh báo Telegram")
+                else:
+                    self.logger.bind(tag=TAG).info("✅ [HQ] Tư thế an toàn (SUPINE), không gửi Telegram để tránh spam.")
                 
             return web.json_response({"success": True, "file": filename})
 

@@ -84,6 +84,9 @@ def setup_logging():
         logger.remove()
 
         # 输出到控制台
+        # Chỉnh sửa để hỗ trợ tiếng Việt trên Console Windows
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
         logger.add(sys.stdout, format=log_format, level=log_level, filter=formatter)
 
         # 输出到文件 - 统一目录，按大小轮转

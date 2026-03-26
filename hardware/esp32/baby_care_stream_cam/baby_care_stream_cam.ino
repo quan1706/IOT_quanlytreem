@@ -7,11 +7,11 @@
 #include "soc/rtc_cntl_reg.h"
 
 // --- CẤU HÌNH WIFI ---
-const char* ssid = "Thành Đạt";
-const char* password = "123456789";
+const char* ssid = "Phòng 402";
+const char* password = "79797979";
 
 // --- CẤU HÌNH SERVER ---
-const char* server_ip = "172.20.10.3";
+const char* server_ip = "192.168.0.32";
 const int   http_port = 8003;
 const int   ws_port   = 8000;
 
@@ -41,6 +41,8 @@ const char* DEVICE_ID = "baby-cam-001";
 
 void handlePreviewStream();
 void handleHQCapture();
+void sendChunk(String data);
+void sendChunk(const uint8_t* data, size_t len);
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
@@ -164,6 +166,7 @@ void handlePreviewStream() {
     streamClient.println("POST /api/vision/mjpeg_push HTTP/1.1");
     streamClient.println("Host: " + String(server_ip));
     streamClient.println("Content-Type: multipart/x-mixed-replace; boundary=" + boundary);
+    streamClient.println("Transfer-Encoding: chunked");
     streamClient.println("Connection: keep-alive");
     streamClient.println();
     Serial.println("MJPEG Stream connected!");
@@ -176,9 +179,9 @@ void handlePreviewStream() {
   String head = "--" + boundary + "\r\nContent-Type: image/jpeg\r\nContent-Length: " + String(fb->len) + "\r\n\r\n";
   String tail = "\r\n";
   
-  streamClient.print(head);
-  streamClient.write(fb->buf, fb->len);
-  streamClient.print(tail);
+  sendChunk(head);
+  sendChunk(fb->buf, fb->len);
+  sendChunk(tail);
   
   esp_camera_fb_return(fb);
   delay(10);
@@ -242,4 +245,16 @@ void handleHQCapture() {
   s->set_quality(s, 15);
   trigger_hq_capture = false;
   Serial.println("[CAPTURE] Finished HQ Capture.");
+}
+
+void sendChunk(String data) {
+  streamClient.printf("%X\r\n", data.length());
+  streamClient.print(data);
+  streamClient.print("\r\n");
+}
+
+void sendChunk(const uint8_t* data, size_t len) {
+  streamClient.printf("%X\r\n", len);
+  streamClient.write(data, len);
+  streamClient.print("\r\n");
 }
