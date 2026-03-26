@@ -357,6 +357,13 @@ class TelegramRouter:
 
         tmpl = self.msg_config.get("commands", {}).get("status", {}).get("text", "")
         if tmpl:
+            pose_val = state.get('pose', 'UNKNOWN')
+            pose_str = "Chưa xác định ❓"
+            if pose_val == "PRONE":
+                pose_str = "Nằm sấp ⚠️"
+            elif pose_val == "SUPINE":
+                pose_str = "Nằm ngửa ✅"
+
             response_text = (prefix + "\n\n" if prefix else "") + tmpl.format(
                 mode=state['mode'].upper(),
                 battery="85",
@@ -364,7 +371,7 @@ class TelegramRouter:
                 temp=state.get('temp', '--'),
                 humidity=state.get('humidity', '--'),
                 baby_state="Bé đang ngủ ngon 😴",
-                baby_posture="Nằm ngửa ✅",
+                baby_posture=pose_str,
                 ai_key=self.dashboard_handler.current_key
             )
         else:

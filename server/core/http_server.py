@@ -296,13 +296,40 @@ class SimpleHttpServer:
             DashboardUpdater.add_system_log("Server", "Web", f"Đã lưu ảnh HQ: {filename}")
             
             if hasattr(self, '_telegram_bot') and self._telegram_bot:
-                caption = (
-                    f"📸 *ẢNH TỪ HỆ THỐNG*\n"
-                    f"Loại: Ảnh chất lượng cao (HQ)\n"
-                    f"Trạng thái: Thành công\n"
-                    f"Kích thước: {len(image_bytes) // 1024} KB\n"
-                    f"Thời gian: {time.strftime('%H:%M:%S')}"
-                )
+                # Phân tích hình ảnh bằng Gemini nếu pose_handler đã được khởi tạo
+                if hasattr(self, 'pose_handler') and getattr(self.pose_handler, 'gemini_key', None):
+                    self.logger.bind(tag=TAG).info("--- [HQ] Bắt đầu gọi Gemini phân tích ảnh ---")
+                    try:
+                        loop = asyncio.get_event_loop()
+                        result_text = await loop.run_in_executor(None, self.pose_handler._analyze_image_sync, image_bytes)
+                        is_prone = "PRONE" in result_text.upper() or "ÚP" in result_text.upper() or "SẤP" in result_text.upper()
+                        
+                        # Cập nhật state toàn cục
+                        pose_status = "PRONE" if is_prone else "SUPINE"
+                        DashboardUpdater.update_pose(pose_status)
+                        
+                        if is_prone:
+                            self.logger.bind(tag=TAG).warning("🚨 Phát hiện trẻ đang nằm lật úp/sấp (PRONE) từ ảnh HQ!")
+                            caption = "🚨 *CẢNH BÁO NGUY HIỂM: PHÁT HIỆN BÉ NẰM ÚP (PRONE)*\n\nHệ thống AI phân tích hình ảnh và phát hiện bé đang trong tư thế nằm sấp. Vui lòng kiểm tra bé ngay lập tức để tránh rủi ro SIDS!"
+                        else:
+                            self.logger.bind(tag=TAG).info("✅ Trẻ đang nằm ngửa (SUPINE) hoặc an toàn.")
+                            caption = "✅ *TƯ THẾ BÉ AN TOÀN*\n\nHệ thống AI xác nhận bé đang nằm ngửa/an toàn (SUPINE)."
+                    except Exception as ai_e:
+                        self.logger.bind(tag=TAG).error(f"Lỗi khi gọi Gemini từ HQ: {ai_e}")
+                        caption = (
+                            f"📸 *ẢNH LỖI PHÂN TÍCH*\n"
+                            f"Đã chụp ảnh HQ nhưng không thể phân tích tư thế AI.\n"
+                            f"Lỗi: {ai_e}"
+                        )
+                else:
+                    caption = (
+                        f"📸 *ẢNH TỪ HỆ THỐNG*\n"
+                        f"Loại: Ảnh chất lượng cao (HQ)\n"
+                        f"Trạng thái: Thành công\n"
+                        f"Kích thước: {len(image_bytes) // 1024} KB\n"
+                        f"Thời gian: {time.strftime('%H:%M:%S')}"
+                    )
+                
                 asyncio.create_task(self._telegram_bot.alerts.send_photo_alert(image_bytes, caption))
                 self.logger.bind(tag=TAG).info("🚀 [HQ] Đã đẩy task gửi Telegram")
                 
