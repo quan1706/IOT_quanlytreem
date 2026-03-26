@@ -48,6 +48,8 @@ class PoseHandler(BaseHandler):
                 self.logger.bind(tag=TAG).error("Chưa cấu hình Gemini API Key.")
                 return web.json_response({"success": False, "error": "Missing API Key"}, status=500)
 
+            from core.serverToClients import DashboardUpdater
+            
             # Gọi Gemini API ngoại tuyến qua run_in_executor để không block event loop
             loop = asyncio.get_event_loop()
             result_text = await loop.run_in_executor(None, self._analyze_image_sync, image_bytes)
@@ -55,6 +57,10 @@ class PoseHandler(BaseHandler):
             self.logger.bind(tag=TAG).info(f"Kết quả phân tích từ Gemini: {result_text}")
             
             is_prone = "PRONE" in result_text.upper() or "ÚP" in result_text.upper() or "SẤP" in result_text.upper()
+            
+            # Cập nhật state toàn cục
+            pose_status = "PRONE" if is_prone else "SUPINE"
+            DashboardUpdater.update_pose(pose_status)
             
             if is_prone:
                 self.logger.bind(tag=TAG).warning("🚨 Phát hiện trẻ đang nằm lật úp/sấp (PRONE)!")
