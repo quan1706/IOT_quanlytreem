@@ -548,8 +548,6 @@ class ConnectionHandler:
                     self.logger.bind(tag=TAG).info("Tính năng nhận diện giọng nói đã được bật động khi kết nối")
                 else:
                     self.logger.bind(tag=TAG).warning("Tính năng nhận diện giọng nói đã bật nhưng cấu hình không đầy đủ")
-            else:
-                self.logger.bind(tag=TAG).info("Tính năng nhận diện giọng nói chưa bật")
         except Exception as e:
             self.logger.bind(tag=TAG).warning(f"Khởi tạo nhận diện giọng nói thất bại: {str(e)}")
 

@@ -15,7 +15,7 @@ class IntentProviderBase(ABC):
         # 获取模型名称和类型信息
         model_name = getattr(llm, "model_name", str(llm.__class__.__name__))
         # 记录更详细的日志
-        logger.bind(tag=TAG).info(f"意图识别设置LLM: {model_name}")
+        logger.bind(tag=TAG).info(f"Cấu hình LLM cho nhận diện ý định: {model_name}")
 
     @abstractmethod
     async def detect_intent(self, conn, dialogue_history: List[Dict], text: str) -> str:

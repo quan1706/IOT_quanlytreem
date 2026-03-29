@@ -5,7 +5,8 @@ from aiohttp import web
 from config.logger import setup_logging
 from core.api.base_handler import BaseHandler
 from core.utils.util import is_valid_image_file, escape_markdown
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 TAG = "PoseHandler"
 MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -19,15 +20,27 @@ class PoseHandler(BaseHandler):
         if not self.gemini_key:
             self.gemini_key = config.get("ASR", {}).get("GroqASR", {}).get("api_key", "")
             
-        self.gemini_model_name = config.get("LLM", {}).get("GeminiLLM", {}).get("model_name", "gemini-1.5-flash")
+        # Ưu tiên bản 2.5 flash như yêu cầu, nếu không có lấy từ config, mặc định là 2.0 flash
+        self.gemini_model_name = config.get("LLM", {}).get("GeminiLLM", {}).get("model_name", "gemini-2.0-flash")
+        if "1.5" in self.gemini_model_name:
+             self.gemini_model_name = "gemini-2.0-flash" 
 
+        self.client = None
         if self.gemini_key:
-            genai.configure(api_key=self.gemini_key)
+            try:
+                self.client = genai.Client(api_key=self.gemini_key)
+                self.logger.bind(tag=TAG).info(f"Khởi tạo Gemini Client (SDK mới) với model: {self.gemini_model_name}")
+            except Exception as e:
+                self.logger.bind(tag=TAG).error(f"Lỗi khởi tạo Gemini SDK mới: {e}")
+        
+        # Cấu hình Groq Vision làm phương án dự phòng
+        self.groq_key = config.get("LLM", {}).get("GroqLLM", {}).get("api_key", "")
+        self.groq_model_name = "llama-3.2-11b-vision-preview"
 
     async def handle_post(self, request):
         """Xử lý POST /api/vision/pose từ ESP32-CAM"""
         try:
-            self.logger.bind(tag=TAG).info("--- NHẬN ẢNH CHECK POSE TỪ ESP32-CAM ---")
+            self.logger.bind(tag=TAG).info("--- NHẬN ẢNH CHECK POSE TỪ ESP32-CAM (SDK NEW) ---")
             
             # Đọc multipart/form-data
             data = await request.post()
@@ -44,8 +57,8 @@ class PoseHandler(BaseHandler):
                 return web.json_response({"success": False, "error": "Invalid image format"}, status=400)
 
             # Phân tích bằng Gemini
-            if not self.gemini_key:
-                self.logger.bind(tag=TAG).error("Chưa cấu hình Gemini API Key.")
+            if not self.gemini_key or not self.client:
+                self.logger.bind(tag=TAG).error("Chưa cấu hình Gemini API Key hoặc khởi tạo SDK thất bại.")
                 return web.json_response({"success": False, "error": "Missing API Key"}, status=500)
 
             # Chạy nền phân tích để phản hồi HTTP ngay lập tức (tránh ESP32 timeout)
@@ -53,7 +66,7 @@ class PoseHandler(BaseHandler):
 
             return web.json_response({
                 "success": True, 
-                "message": "Image received. Processing in background."
+                "message": f"Image received. Processing with {self.gemini_model_name} (SDK New)."
             })
 
         except Exception as e:
@@ -67,51 +80,109 @@ class PoseHandler(BaseHandler):
             loop = asyncio.get_event_loop()
             result_text = await loop.run_in_executor(None, self._analyze_image_sync, image_bytes)
             
-            self.logger.bind(tag=TAG).info(f"Kết quả phân tích từ Gemini: {result_text}")
+            self.logger.bind(tag=TAG).info(f"Kết quả phân tích Gemini (SDK mới): {result_text}")
             
-            is_prone = "PRONE" in result_text.upper() or "ÚP" in result_text.upper() or "SẤP" in result_text.upper()
+            # Nếu Gemini lỗi, thử dùng Groq Vision
+            if "ERROR" in result_text.upper() or not result_text:
+                if self.groq_key and "YOUR_GROQ" not in self.groq_key:
+                    self.logger.bind(tag=TAG).warning("Đang chuyển sang Groq Vision dự phòng...")
+                    result_text = await loop.run_in_executor(None, self._analyze_image_groq, image_bytes)
+                    self.logger.bind(tag=TAG).info(f"Kết quả phân tích từ Groq Vision: {result_text}")
             
+            # Xử lý kết quả cuối cùng
+            is_error = "ERROR" in result_text.upper() or "EXCEPTION" in result_text.upper() or "400" in result_text
+            is_prone = any(kw in result_text.upper() for kw in ["PRONE", "ÚP", "SẤP", "NẰM SẤP"])
+            
+            if is_error:
+                self.logger.bind(tag=TAG).error(f"Cả hai AI đều thất bại: {result_text}")
+                if hasattr(self, '_telegram_alerts') and self._telegram_alerts:
+                    safe_error = escape_markdown(result_text)
+                    caption = f"⚠️ *CẢNH BÁO: AI LỖI PHÂN TÍCH*\nEm không nhìn rõ được bé lúc này. Ba mẹ hãy tự xem ảnh để kiểm tra bé nhé!"
+                    asyncio.create_task(self._telegram_alerts.send_photo_alert(image_bytes, caption))
+                DashboardUpdater.update_pose("ERROR")
+                return
+
             # Cập nhật state toàn cục
             pose_status = "PRONE" if is_prone else "SUPINE"
             DashboardUpdater.update_pose(pose_status)
             
             if is_prone:
                 self.logger.bind(tag=TAG).warning("🚨 Phát hiện trẻ đang nằm lật úp/sấp (PRONE)!")
-                # Gửi cảnh báo Telegram
                 if hasattr(self, '_telegram_alerts') and self._telegram_alerts:
-                    caption = "🚨 *CẢNH BÁO NGUY HIỂM: PHÁT HIỆN BÉ NẰM ÚP (PRONE)*\n\nHệ thống AI (Gemini) phân tích hình ảnh và phát hiện bé đang trong tư thế nằm sấp. Vui lòng kiểm tra bé ngay lập tức để tránh rủi ro SIDS!"
+                    caption = "🚨 *CẢNH BÁO NGUY HIỂM: PHÁT HIỆN BÉ NẰM ÚP (PRONE)*\n\nBa mẹ hãy kiểm tra bé ngay lập tức!"
                     asyncio.create_task(self._telegram_alerts.send_photo_alert(image_bytes, caption))
             else:
                 self.logger.bind(tag=TAG).info("✅ Trẻ đang nằm ngửa (SUPINE) hoặc an toàn.")
                 
         except Exception as e:
             self.logger.bind(tag=TAG).error(f"Lỗi xử lý nền pose: {e}")
-            if hasattr(self, '_telegram_alerts') and self._telegram_alerts:
-                safe_error = escape_markdown(str(e))
-                caption = f"📸 *ẢNH LỖI PHÂN TÍCH (POSE)*\nKhông thể phân tích tư thế AI.\nLỗi: {safe_error}"
-                asyncio.create_task(self._telegram_alerts.send_photo_alert(image_bytes, caption))
 
     def _analyze_image_sync(self, image_bytes: bytes) -> str:
-        """Hàm đồng bộ gọi Gemini SDK để phân tích ảnh."""
-        model = genai.GenerativeModel(self.gemini_model_name)
+        """Hàm đồng bộ gọi Gemini SDK (google-genai) để phân tích ảnh."""
+        if not self.client:
+            return "ERROR: SDK client not initialized"
+            
         prompt = (
-            "Bạn là một trợ lý AI phân tích tư thế ngủ của trẻ sơ sinh để phòng chống hội chứng SIDS. "
-            "Hãy xem bức ảnh này và cho tôi biết bé đang nằm sấp/úp (nguy hiểm) hay nằm ngửa (an toàn) hay tư thế khác? "
-            "Nếu nằm sấp/úp (chỉ thấy phần lưng/sau gáy/vai cao hơn mũi v.v.), hãy trả lời TỪ KHÓA ĐẦU TIÊN là PRONE. "
-            "Nếu nằm ngửa (thấy rõ mặt, bụng), hãy trả lời TỪ KHÓA ĐẦU TIÊN là SUPINE. "
-            "Phân tích ngắn gọn."
+            "Bạn là trợ lý AI giám sát an toàn cho trẻ sơ sinh. "
+            "Nhìn vào ảnh này, bé đang nằm sấp/úp (PRONE) hay nằm ngửa (SUPINE)? "
+            "Chỉ trả lời một trong hai từ khóa trên ở đầu câu. "
+            "Nếu không chắc chắn, hãy cố gắng phân tích dựa trên vị trí của lưng và bụng."
         )
         
-        # Gemini nhận dict với mime_type và data
-        image_parts = [
-            {
-                "mime_type": "image/jpeg",
-                "data": image_bytes
-            }
-        ]
+        try:
+            response = self.client.models.generate_content(
+                model=self.gemini_model_name,
+                contents=[
+                    prompt,
+                    types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
+                ]
+            )
+            return response.text
+        except Exception as e:
+            err_msg = str(e)
+            self.logger.bind(tag=TAG).error(f"Lỗi Gemini SDK (New): {err_msg}")
+            return f"ERROR: {err_msg}"
+
+    def _analyze_image_groq(self, image_bytes: bytes) -> str:
+        """Hàm dự phòng sử dụng Groq Vision API."""
+        import requests
         
-        response = model.generate_content([prompt, image_parts[0]])
-        return response.text
+        try:
+            base64_image = base64.b64encode(image_bytes).decode('utf-8')
+            
+            headers = {
+                "Authorization": f"Bearer {self.groq_key}",
+                "Content-Type": "application/json"
+            }
+            
+            prompt = (
+                "Bạn là trợ lý AI giám sát trẻ em. Hãy xem ảnh và cho biết bé đang nằm sấp (nguy hiểm) hay nằm ngửa (an toàn)? "
+                "Trả lời từ khóa PRONE nếu nằm sấp, SUPINE nếu nằm ngửa. Ngắn gọn."
+            )
+            
+            payload = {
+                "model": self.groq_model_name,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                        ]
+                    }
+                ],
+                "max_tokens": 100
+            }
+            
+            response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=15)
+            if response.status_code == 200:
+                return response.json()['choices'][0]['message']['content']
+            else:
+                err_body = response.text
+                self.logger.bind(tag=TAG).error(f"Groq Vision Error ({response.status_code}): {err_body}")
+                return f"GROQ_ERROR: {response.status_code}"
+        except Exception as e:
+            return f"GROQ_EXCEPTION: {str(e)}"
 
     def set_telegram_alerts(self, alerts):
         """Được gọi từ http_server để gán TelegramAlerts."""

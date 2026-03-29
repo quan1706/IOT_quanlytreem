@@ -112,11 +112,15 @@ class ESP32Commander:
         os.makedirs(music_dir, exist_ok=True)
 
         if command == "ru_vong":
+            # Gửi thông báo quay motor trước để ESP32 ưu tiên xử lý cơ khí
+            self.logger.bind(tag=TAG).info("Kích hoạt motor ru nôi và chuẩn bị phát nhạc...")
             self._is_playing_music = False
             filepath = os.path.join(music_dir, "nhacrubengu.mp3")
             if os.path.isfile(filepath):
+                # Khởi tạo task phát nhạc (sẽ bắt đầu ngay sau khi hàm này gửi lệnh JSON xuống)
                 self._music_task = asyncio.create_task(self.play_music_task(filepath))
-            else: return False, "⚠️ Không tìm thấy file nhạc ru bé."
+            else: 
+                self.logger.bind(tag=TAG).warning("⚠️ Không tìm thấy file nhạc ru bé 'nhacrubengu.mp3'")
 
         elif command == "phat_nhac":
             self._is_playing_music = False
@@ -138,7 +142,7 @@ class ESP32Commander:
             return False, "⚠️ Thiết bị ESP32 chưa kết nối."
 
         # Pre-emption cho các lệnh chụp ảnh
-        is_capture_cmd = command in ["capture_hq", "capture_pose", "check_baby_pose"]
+        is_capture_cmd = command in ["capture_hq", "capture_pose", "check_baby_pose", "hinh_anh"]
         if is_capture_cmd:
             from core.http_server import SimpleHttpServer
             if SimpleHttpServer._instance:

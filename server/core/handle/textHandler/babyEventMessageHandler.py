@@ -27,6 +27,8 @@ class BabyEventMessageHandler(TextMessageHandler):
         
         conn.logger.bind(tag=TAG).bind(tag=TAG).info(f"Nhận sự kiện Baby Care: {event_type} - {msg_json}")
 
+        from core.telegram.alerts import _global_alerts
+
         if event_type == "cry_detected":
             # ── Log vào Dashboard & Chống Spam (Cooldown 60s toàn cục) ────
             from core.serverToClients import DashboardUpdater
@@ -58,14 +60,7 @@ class BabyEventMessageHandler(TextMessageHandler):
             )
 
             # ── Gửi Telegram text alert ──────────────────────────────────
-            from core.telegram import TelegramClient
             from core.serverToClients.baby_actions import BabyCareAction
-
-            tg_config = conn.config.get("telegram", {}) if hasattr(conn, "config") else {}
-            client = TelegramClient(
-                bot_token=tg_config.get("bot_token", ""),
-                default_chat_id=tg_config.get("chat_id", ""),
-            )
 
             action_list = "\n".join(
                 f"  • {a.button_label} — {a.description}" for a in BabyCareAction
@@ -79,9 +74,11 @@ class BabyEventMessageHandler(TextMessageHandler):
                 "👉 Hãy chọn hành động bên dưới:"
             )
             reply_markup = BabyCareAction.get_inline_keyboard(cols=2)
-            asyncio.create_task(
-                client.send_message(text=alert_text, reply_markup=reply_markup)
-            )
+            
+            if _global_alerts:
+                asyncio.create_task(
+                    _global_alerts.client.send_message(text=alert_text, reply_markup=reply_markup)
+                )
 
             # ── Dỗ bé bằng giọng TTS ────────────────────────────────────
             system_prompt = (
@@ -95,7 +92,8 @@ class BabyEventMessageHandler(TextMessageHandler):
             temp     = msg_json.get("temperature")
             humidity = msg_json.get("humidity")
             device_id = msg_json.get("device_id", "unknown")
-            conn.logger.bind(tag=TAG).info(
+            # Log ra console mức DEBUG để tránh làm rối màn hình ba mẹ
+            conn.logger.bind(tag=TAG).debug(
                 f"Nhiệt độ hiện tại: {temp}°C | Độ ẩm: {humidity}% | device={device_id}"
             )
             from core.serverToClients import DashboardUpdater
@@ -105,6 +103,16 @@ class BabyEventMessageHandler(TextMessageHandler):
                 to_node="Server",
                 data={"temp": temp, "humidity": humidity, "device": device_id}
             )
+            
+            # ── Cập nhật vào bộ nhớ AI (Context) ──────────────────────────
+            if hasattr(conn, "iot_descriptors") and device_id in conn.iot_descriptors:
+                device = conn.iot_descriptors[device_id]
+                for prop in device.properties:
+                    if prop["name"] == "temperature":
+                        prop["value"] = temp
+                    elif prop["name"] == "humidity":
+                        prop["value"] = humidity
+                conn.logger.bind(tag=TAG).debug(f"Đã đồng bộ Nhiệt độ ({temp}) & Độ ẩm ({humidity}) vào Context AI")
 
         elif event_type == "temperature_alert":
             temp = msg_json.get("temperature")
@@ -114,14 +122,7 @@ class BabyEventMessageHandler(TextMessageHandler):
             conn.logger.bind(tag=TAG).warning(f"⚠️ CẢNH BÁO NHIỆT ĐỘ CAO: {temp}°C từ {device_id}")
 
             # ── Gửi Telegram alert với lựa chọn bật quạt ──────────────────
-            from core.telegram import TelegramClient
             from core.serverToClients.baby_actions import BabyCareAction
-
-            tg_config = conn.config.get("telegram", {}) if hasattr(conn, "config") else {}
-            client = TelegramClient(
-                bot_token=tg_config.get("bot_token", ""),
-                default_chat_id=tg_config.get("chat_id", ""),
-            )
 
             alert_text = (
                 "⚠️ *CẢNH BÁO: PHÒNG QUÁ NÓNG!*\n"
@@ -131,7 +132,6 @@ class BabyEventMessageHandler(TextMessageHandler):
             )
             
             # Chỉ hiển thị nút Bật quạt và Dừng
-            from core.serverToClients.baby_actions import BabyCareAction
             custom_keyboard = {
                 "inline_keyboard": [
                     [
@@ -142,8 +142,9 @@ class BabyEventMessageHandler(TextMessageHandler):
             }
             
             async def send_with_log():
-                success = await client.send_message(text=alert_text, reply_markup=custom_keyboard)
-                conn.logger.bind(tag=TAG).info(f"Telegram Alert Send Result: {success} to chat_id={tg_config.get('chat_id')}")
+                if _global_alerts:
+                    success = await _global_alerts.client.send_message(text=alert_text, reply_markup=custom_keyboard)
+                    conn.logger.bind(tag=TAG).info(f"Telegram Alert Send Result: {success}")
                 # Tự động bật quạt ngay lập tức
                 from core.serverToClients.esp32_commander import ESP32Commander
                 await ESP32Commander().execute_command("bat_quat")
@@ -161,13 +162,6 @@ class BabyEventMessageHandler(TextMessageHandler):
             DashboardUpdater.update_sensor_data(temp, humidity)
             
             # Gửi tin nhắn định kỳ tới Telegram
-            from core.telegram import TelegramClient
-            tg_config = conn.config.get("telegram", {}) if hasattr(conn, "config") else {}
-            client = TelegramClient(
-                bot_token=tg_config.get("bot_token", ""),
-                default_chat_id=tg_config.get("chat_id", ""),
-            )
-            
             report_text = (
                 "📊 *CẬP NHẬT TRẠNG THÁI ĐỊNH KỲ*\n"
                 f"Nhiệt độ: *{temp}°C*\n"
@@ -175,8 +169,9 @@ class BabyEventMessageHandler(TextMessageHandler):
                 "Hệ thống vẫn đang hoạt động ổn định."
             )
             async def send_periodic_with_log():
-                success = await client.send_message(text=report_text)
-                conn.logger.bind(tag=TAG).info(f"Telegram Periodic Report Result: {success} to chat_id={tg_config.get('chat_id')}")
+                if _global_alerts:
+                    success = await _global_alerts.client.send_message(text=report_text)
+                    conn.logger.bind(tag=TAG).info(f"Telegram Periodic Report Result: {success}")
 
             asyncio.create_task(send_periodic_with_log())
 
@@ -189,23 +184,13 @@ class BabyEventMessageHandler(TextMessageHandler):
             
             # Cập nhật DASHBOARD_STATE và log hệ thống
             from core.serverToClients import DashboardUpdater
-            # Giả định DashboardUpdater có phương thức hoặc ta cập nhật trực tiếp qua system log
             DashboardUpdater.add_system_log(
                 from_node="ESP",
                 to_node="Server",
                 data={"status": status, "source": source, "device": device_id}
             )
-            # Nếu Dashboard có field riêng cho quạt, cần cập nhật ở đây
-            # Hiện tại ta dùng system log để người dùng thấy sự thay đổi.
 
             # ── Gửi thông báo vào Telegram ──────────────────────────────
-            from core.telegram import TelegramClient
-            tg_config = conn.config.get("telegram", {}) if hasattr(conn, "config") else {}
-            client = TelegramClient(
-                bot_token=tg_config.get("bot_token", ""),
-                default_chat_id=tg_config.get("chat_id", ""),
-            )
-            
             icon = "🌬️" if status == "on" else "🛑"
             label = "BẬT" if status == "on" else "TẮT"
             source_map = {
@@ -220,4 +205,5 @@ class BabyEventMessageHandler(TextMessageHandler):
                 f"Trạng thái: *{label}*\n"
                 f"Nguồn điều khiển: _{src_label}_"
             )
-            asyncio.create_task(client.send_message(text=notify_text))
+            if _global_alerts:
+                asyncio.create_task(_global_alerts.client.send_message(text=notify_text))

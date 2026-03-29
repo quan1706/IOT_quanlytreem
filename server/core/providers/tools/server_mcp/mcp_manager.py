@@ -1,4 +1,4 @@
-"""服务端MCP管理器"""
+"""Trình quản lý MCP phía Server"""
 
 import asyncio
 import os
@@ -16,23 +16,23 @@ logger = setup_logging()
 
 
 class ServerMCPManager:
-    """管理多个服务端MCP服务的集中管理器"""
+    """Trình quản lý tập trung các dịch vụ MCP phía Server"""
 
     def __init__(self, conn) -> None:
-        """初始化MCP管理器"""
+        """Khởi tạo trình quản lý MCP"""
         self.conn = conn
         self.config_path = get_project_dir() + "data/.mcp_server_settings.json"
         if not os.path.exists(self.config_path):
             self.config_path = ""
             logger.bind(tag=TAG).warning(
-                f"请检查mcp服务配置文件：data/.mcp_server_settings.json"
+                f"Vui lòng kiểm tra tệp cấu hình dịch vụ MCP: data/.mcp_server_settings.json"
             )
         self.clients: Dict[str, ServerMCPClient] = {}
         self.tools = []
         self._init_lock = asyncio.Lock()
 
     def load_config(self) -> Dict[str, Any]:
-        """加载MCP服务配置"""
+        """Tải cấu hình dịch vụ MCP"""
         if len(self.config_path) == 0:
             return {}
 
@@ -47,11 +47,11 @@ class ServerMCPManager:
             return {}
 
     async def _init_server(self, name: str, srv_config: Dict[str, Any]):
-        """初始化单个MCP服务"""
+        """Khởi tạo một dịch vụ MCP đơn lẻ"""
         client = None
         try:
             # 初始化服务端MCP客户端
-            logger.bind(tag=TAG).info(f"初始化服务端MCP客户端: {name}")
+            logger.bind(tag=TAG).info(f"Khởi tạo client MCP phía Server: {name}")
             client = ServerMCPClient(srv_config)
             # 设置超时时间10秒
             await asyncio.wait_for(client.initialize(logging_callback=self.logging_callback), timeout=10)
@@ -76,7 +76,7 @@ class ServerMCPManager:
                 await client.cleanup()
 
     async def initialize_servers(self) -> None:
-        """初始化所有MCP服务"""
+        """Khởi tạo tất cả dịch vụ MCP"""
         config = self.load_config()
         tasks = []
         for name, srv_config in config.items():
@@ -91,19 +91,15 @@ class ServerMCPManager:
         if tasks:
             await asyncio.gather(*tasks)
 
-        # 输出当前支持的服务端MCP工具列表
-        if hasattr(self.conn, "func_handler") and self.conn.func_handler:
-            # 刷新工具缓存以确保服务端MCP工具被正确加载
-            if hasattr(self.conn.func_handler, "tool_manager"):
-                self.conn.func_handler.tool_manager.refresh_tools()
-            self.conn.func_handler.current_support_functions()
+        # Tránh log trùng lặp vì UnifiedToolHandler đã in danh sách này
+        pass
 
     def get_all_tools(self) -> List[Dict[str, Any]]:
-        """获取所有服务的工具function定义"""
+        """Lấy định nghĩa hàm công cụ của tất cả dịch vụ"""
         return self.tools
 
     def is_mcp_tool(self, tool_name: str) -> bool:
-        """检查是否是MCP工具"""
+        """Kiểm tra xem có phải công cụ MCP không"""
         for tool in self.tools:
             if (
                 tool.get("function") is not None
@@ -113,8 +109,8 @@ class ServerMCPManager:
         return False
 
     async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
-        """执行工具调用，失败时会尝试重新连接"""
-        logger.bind(tag=TAG).info(f"执行服务端MCP工具 {tool_name}，参数: {arguments}")
+        """Thực thi gọi công cụ, sẽ thử lại nếu thất bại"""
+        logger.bind(tag=TAG).info(f"Thực thi công cụ MCP phía Server {tool_name}, tham số: {arguments}")
 
         max_retries = 3  # 最大重试次数
         retry_interval = 2  # 重试间隔(秒)
@@ -129,7 +125,7 @@ class ServerMCPManager:
                 break
 
         if not target_client:
-            raise ValueError(f"工具 {tool_name} 在任意MCP服务中未找到")
+            raise ValueError(f"Công cụ {tool_name} không tìm thấy trong bất kỳ dịch vụ MCP nào")
 
         # 带重试机制的工具调用
         for attempt in range(max_retries):
@@ -146,7 +142,7 @@ class ServerMCPManager:
 
                 # 尝试重新连接
                 logger.bind(tag=TAG).info(
-                    f"重试前尝试重新连接 MCP 客户端 {client_name}"
+                    f"Thử kết nối lại client MCP {client_name} trước khi chạy lại"
                 )
                 try:
                     # 关闭旧的连接
@@ -160,7 +156,7 @@ class ServerMCPManager:
                         self.clients[client_name] = client
                         target_client = client
                         logger.bind(tag=TAG).info(
-                            f"成功重新连接 MCP 客户端: {client_name}"
+                            f"Kết nối lại thành công client MCP: {client_name}"
                         )
                     else:
                         logger.bind(tag=TAG).error(
@@ -175,12 +171,12 @@ class ServerMCPManager:
                 await asyncio.sleep(retry_interval)
 
     async def cleanup_all(self) -> None:
-        """关闭所有 MCP客户端"""
+        """Đóng tất cả client MCP"""
         for name, client in list(self.clients.items()):
             try:
                 if hasattr(client, "cleanup"):
                     await asyncio.wait_for(client.cleanup(), timeout=20)
-                logger.bind(tag=TAG).info(f"服务端MCP客户端已关闭: {name}")
+                logger.bind(tag=TAG).info(f"Client MCP phía Server đã đóng: {name}")
             except (asyncio.TimeoutError, Exception) as e:
                 logger.bind(tag=TAG).error(f"关闭服务端MCP客户端 {name} 时出错: {e}")
         self.clients.clear()

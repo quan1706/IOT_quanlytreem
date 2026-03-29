@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sơ đồ Đấu Dây Chi Tiết ESP32 (Wiring Diagram)</title>
+    <style>
+        body { margin: 0; padding: 20px; font-family: 'Segoe UI', Arial, sans-serif; background-color: #f0f4f8; display: flex; flex-direction: column; align-items: center; }
+        .canvas-container { position: relative; width: 1000px; height: 750px; background-color: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid #e1e8ed; overflow: hidden; margin-bottom: 20px; }
+        
+        /* Board Styles */
+        .board { position: absolute; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; color: white; text-align: center; font-size: 14px; z-index: 10; padding: 10px; box-sizing: border-box; }
+        .esp32 { width: 140px; height: 260px; background-color: #2c3e50; border: 2px solid #34495e; top: 250px; left: 430px; }
+        .mic { width: 100px; height: 100px; background-color: #f1c40f; color: #333; border-radius: 50%; top: 50px; left: 150px; border: 4px solid #f39c12; }
+        .speaker { width: 120px; height: 120px; background-color: #8e44ad; top: 500px; left: 140px; border-radius: 10px; }
+        .oled { width: 140px; height: 90px; background-color: #2980b9; top: 150px; left: 750px; }
+        .dht { width: 70px; height: 110px; background-color: #3498db; top: 350px; left: 780px; }
+        .servo { width: 90px; height: 60px; background-color: #e67e22; top: 550px; left: 770px; }
+        .relay { width: 80px; height: 100px; background-color: #c0392b; top: 620px; left: 550px; }
+        .power { width: 120px; height: 70px; background-color: #bdc3c7; color: #2c3e50; top: 40px; left: 440px; border: 2px dashed #7f8c8d; }
+
+        /* Pin Labels styling inside ESP32 */
+        .pin-col { position: absolute; display: flex; flex-direction: column; justify-content: space-between; height: 220px; top: 20px; font-size: 10px; color: #ecf0f1; font-family: monospace; }
+        .pin-left { left: 5px; align-items: flex-start; }
+        .pin-right { right: 5px; align-items: flex-end; }
+        .pin { width: 100%; text-align: left; }
+        .pin.r { text-align: right; }
+
+        /* Device Labels */
+        .title { position: absolute; font-weight: bold; font-size: 16px; color: #2c3e50; z-index: 20; background: rgba(255,255,255,0.8); padding: 2px 5px; border-radius: 4px; }
+        
+        /* SVG layer for wiring lines */
+        svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
+        path { fill: none; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+        .wire-vcc3 { stroke: #e74c3c; stroke-dasharray: 4; } /* Đỏ nhạt - 3.3V */
+        .wire-vcc5 { stroke: #c0392b; } /* Đỏ đậm - 5V */
+        .wire-gnd { stroke: #2c3e50; } /* Đen - GND */
+        .wire-data1 { stroke: #3498db; } /* Xanh dương */
+        .wire-data2 { stroke: #f1c40f; } /* Vàng */
+        .wire-data3 { stroke: #2ecc71; } /* Xanh lá */
+        .wire-data4 { stroke: #9b59b6; } /* Tím */
+        
+        .header-text { text-align: center; color: #2c3e50; }
+        button { padding: 10px 20px; font-size: 16px; background-color: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s; }
+        button:hover { background-color: #2ecc71; transform: translateY(-2px); }
+        
+        .legend { display: flex; gap: 15px; margin-top: 10px; font-size: 14px; }
+        .color-box { width: 15px; height: 15px; display: inline-block; vertical-align: middle; margin-right: 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <div class="header-text">
+        <h1>Sơ Đồ Kết Nối Chân ESP32 (Smart Baby Care)</h1>
+        <p>Bản đồ đi dây chi tiết chỉ rõ từng cổng (Pin) cắm vào Module nào</p>
+    </div>
+
+    <div class="canvas-container">
+        <!-- SVG Lớp vẽ Dây điện -->
+        <svg>
+            <!-- GND Lines (Đen) -->
+            <path class="wire-gnd" d="M 500 110 L 500 200 L 440 200 L 440 330" /> <!-- Nguồn -> ESP GND -->
+            <path class="wire-gnd" d="M 440 330 L 250 330 L 250 90 L 200 90" /> <!-- ESP GND -> Mic -->
+            <path class="wire-gnd" d="M 440 330 L 250 330 L 250 550 L 200 550" /> <!-- ESP GND -> MAX98357A -->
+            <path class="wire-gnd" d="M 440 330 L 300 330 L 300 680 L 550 680" /> <!-- ESP GND -> Relay -->
+            <path class="wire-gnd" d="M 570 330 L 700 330 L 700 180 L 750 180" /> <!-- ESP GND -> OLED -->
+            <path class="wire-gnd" d="M 570 330 L 700 330 L 700 400 L 780 400" /> <!-- ESP GND -> DHT11 -->
+            <path class="wire-gnd" d="M 570 330 L 700 330 L 700 600 L 770 600" /> <!-- ESP GND -> Servo -->
+
+            <!-- VCC 5V Lines (Đỏ đậm) -->
+            <path class="wire-vcc5" d="M 500 110 L 500 230 L 570 230 L 570 265" /> <!-- Nguồn -> ESP VIN -->
+            <path class="wire-vcc5" d="M 500 110 L 500 230 L 740 230 L 740 570 L 770 570" /> <!-- Nguồn -> Servo -->
+            <path class="wire-vcc5" d="M 500 110 L 500 230 L 610 230 L 610 650 L 550 650" /> <!-- Nguồn -> Relay -->
+            <path class="wire-vcc5" d="M 500 110 L 330 110 L 330 520 L 260 520" /> <!-- Nguồn -> MAX98357A -->
+
+            <!-- VCC 3.3V Lines (Đỏ nhạt nét đứt) -->
+            <path class="wire-vcc3" d="M 430 450 L 220 450 L 220 70 L 200 70" /> <!-- ESP 3.3V -> Mic -->
+            <path class="wire-vcc3" d="M 430 450 L 380 450 L 380 200 L 750 200" /> <!-- ESP 3.3V -> OLED -->
+            <path class="wire-vcc3" d="M 430 450 L 380 450 L 380 370 L 780 370" /> <!-- ESP 3.3V -> DHT11 -->
+
+            <!-- Data Lines - I2S Mic INMP441 -->
+            <path class="wire-data1" d="M 430 310 L 240 310 L 240 110 L 200 110" /> <!-- D32 -> Mic SD -->
+            <path class="wire-data2" d="M 430 350 L 230 350 L 230 130 L 200 130" /> <!-- D25 -> Mic WS -->
+            <path class="wire-data3" d="M 430 370 L 210 370 L 210 150 L 200 150" /> <!-- D26 -> Mic SCK -->
+
+            <!-- Data Lines - I2S Loa MAX98357A -->
+            <path class="wire-data1" d="M 430 290 L 280 290 L 280 570 L 260 570" /> <!-- D33 -> Loa DIN -->
+            <path class="wire-data2" d="M 430 390 L 290 390 L 290 590 L 260 590" /> <!-- D27 -> Loa LRC -->
+            <path class="wire-data3" d="M 430 410 L 300 410 L 300 610 L 260 610" /> <!-- D14 -> Loa BCLK -->
+
+            <!-- Data Lines - OLED I2C -->
+            <path class="wire-data1" d="M 570 410 L 680 410 L 680 220 L 750 220" /> <!-- D21 -> OLED SDA -->
+            <path class="wire-data2" d="M 570 430 L 690 430 L 690 240 L 750 240" /> <!-- D22 -> OLED SCL -->
+
+            <!-- Data Lines - Cảm biến DHT11 -->
+            <path class="wire-data3" d="M 570 370 L 670 370 L 670 430 L 780 430" /> <!-- D13 -> DHT Data -->
+
+            <!-- Data Lines - Servo & Relay -->
+            <path class="wire-data4" d="M 570 450 L 650 450 L 650 630 L 770 630" /> <!-- D23 -> Servo PWM -->
+            <path class="wire-data4" d="M 570 490 L 630 490 L 630 690 L 620 690" /> <!-- D05 -> Relay Kích -->
+            
+        </svg>
+
+        <!-- Components HTML UI -->
+        <div class="board power">
+            <div style="font-size: 16px;">USB 5V/2A</div>
+            <div style="font-size: 11px; margin-top:5px; color:#555;">(Sạc điện thoại)</div>
+        </div>
+
+        <div class="board esp32">
+            <div style="font-size: 16px; margin-bottom: 5px;">ESP32 DevKit V1</div>
+            <div>(Bo mạch chính)</div>
+            
+            <div class="pin-col pin-left">
+                <div class="pin">EN</div>
+                <div class="pin">VP (36)</div>
+                <div class="pin">VN (39)</div>
+                <div class="pin">D34</div>
+                <div class="pin">D35</div>
+                <div class="pin">D32 [Mic SD]</div>
+                <div class="pin">D33 [Loa DIN]</div>
+                <div class="pin">D25 [Mic WS]</div>
+                <div class="pin">D26 [Mic SCK]</div>
+                <div class="pin">D27 [Loa LRC]</div>
+                <div class="pin">D14 [Loa BCLK]</div>
+                <div class="pin">D12</div>
+                <div class="pin">D13 [DHT11]</div>
+                <div class="pin" style="color: #3498db;">GND (Mass)</div>
+                <div class="pin">VIN (Vào 5V)</div>
+            </div>
+            
+            <div class="pin-col pin-right">
+                <div class="pin r">D23 [Servo]</div>
+                <div class="pin r">D22 [OLED SCL]</div>
+                <div class="pin r">TX0</div>
+                <div class="pin r">RX0</div>
+                <div class="pin r">D21 [OLED SDA]</div>
+                <div class="pin r">D19</div>
+                <div class="pin r">D18</div>
+                <div class="pin r">D5 [Relay Quạt]</div>
+                <div class="pin r">TX2 (17)</div>
+                <div class="pin r">RX2 (16)</div>
+                <div class="pin r">D4</div>
+                <div class="pin r">D2</div>
+                <div class="pin r">D15</div>
+                <div class="pin r" style="color: #3498db;">GND (Mass)</div>
+                <div class="pin r" style="color: #e74c3c;">3V3 (Ra 3V)</div>
+            </div>
+        </div>
+
+        <!-- Left side components -->
+        <div class="title" style="top: 20px; left: 130px;">Micro Thu Âm (INMP441)</div>
+        <div class="board mic">
+            <div>VDD (3.3V)</div>
+            <div>GND</div>
+            <div>L/R (to GND)</div>
+            <div style="font-size:12px; margin-top:5px;">WS (D25)</div>
+            <div style="font-size:12px;">SCK (D26)</div>
+            <div style="font-size:12px;">SD (D32)</div>
+        </div>
+
+        <div class="title" style="top: 470px; left: 130px;">Mạch Loa Phát (MAX98357A)</div>
+        <div class="board speaker">
+            <div>VIN (5V)</div>
+            <div>GND</div>
+            <div style="font-size:12px; margin-top:5px;">DIN (D33)</div>
+            <div style="font-size:12px;">BCLK (D14)</div>
+            <div style="font-size:12px;">LRC (D27)</div>
+        </div>
+
+        <!-- Right side components -->
+        <div class="title" style="top: 120px; left: 750px;">Màn Hình (OLED I2C)</div>
+        <div class="board oled">
+            <div>VCC (3.3V)</div>
+            <div>GND</div>
+            <div>SDA (D21)</div>
+            <div>SCL (D22)</div>
+        </div>
+
+        <div class="title" style="top: 320px; left: 740px;">Đo Nhiệt Độ (DHT11)</div>
+        <div class="board dht">
+            <div>VCC (3V)</div>
+            <div>GND</div>
+            <div>Data (D13)</div>
+        </div>
+
+        <div class="title" style="top: 520px; left: 730px;">Đưa Nôi (Servo PWM)</div>
+        <div class="board servo">
+            <div style="font-size: 12px">VCC (5V Rời)</div>
+            <div style="font-size: 12px">GND</div>
+            <div style="font-size: 12px">Data (D23)</div>
+        </div>
+
+        <div class="title" style="top: 590px; left: 510px;">Bật Quạt (Relay 5V)</div>
+        <div class="board relay">
+            <div style="font-size: 12px">VCC (5V Rời)</div>
+            <div style="font-size: 12px">GND</div>
+            <div style="font-size: 12px">IN (D05)</div>
+            <div style="border-top:1px solid white; margin-top:5px; padding-top:5px; font-size: 10px;">COM/NO to Fan</div>
+        </div>
+    </div>
+
+    <!-- Hướng dẫn & Nút In -->
+    <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: left; width: 970px;">
+        <h3 style="margin-top:0; color:#2c3e50;">🎯 Chú giải Màu Dây Nối (Legend):</h3>
+        <div class="legend">
+            <div><span class="color-box" style="background-color: #c0392b;"></span> Nguồn Điện Mạnh 5V (Từ củ sạc) - Cấp cho ESP32, Loa, Motor, Relay</div>
+            <div><span class="color-box" style="background-color: #2c3e50;"></span> Đường Nối Đất Chung (GND) - Bắt buộc tất cả thiết bị đều phải cắm vào mạch này</div>
+        </div>
+        <div class="legend">
+            <div><span class="color-box" style="border: 2px dashed #e74c3c;"></span> Nguồn Điện Nhẹ 3.3V (Từ ESP32) - Chỉ cấp cho Micro, DHT11, Màn hình OLED</div>
+            <div><span class="color-box" style="background-color: #3498db;"></span> / <span class="color-box" style="background-color: #f1c40f;"></span> / <span class="color-box" style="background-color: #2ecc71;"></span> / <span class="color-box" style="background-color: #9b59b6;"></span> Dây Dữ Liệu Tín Hiệu (Data Pins)</div>
+        </div>
+    </div>
+    
+    <button style="margin-top: 20px;" onclick="window.print()">📷 Chụp & Xuất Sơ Đồ Thành PDF</button>
+
+</body>
+</html>

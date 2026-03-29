@@ -1,4 +1,4 @@
-"""统一工具处理器"""
+"""Trình xử lý công cụ thống nhất"""
 
 import json
 from typing import Dict, List, Any, Optional
@@ -16,7 +16,7 @@ from .mcp_endpoint import MCPEndpointExecutor
 
 
 class UnifiedToolHandler:
-    """统一工具处理器"""
+    """Trình xử lý công cụ thống nhất"""
 
     def __init__(self, conn):
         self.conn = conn
@@ -69,13 +69,13 @@ class UnifiedToolHandler:
             self._initialize_home_assistant()
 
             self.finish_init = True
-            self.logger.debug("统一工具处理器初始化完成")
+            self.logger.debug("Khởi tạo Trình xử lý công cụ thống nhất hoàn tất")
 
             # 输出当前支持的所有工具列表
             self.current_support_functions()
 
         except Exception as e:
-            self.logger.error(f"统一工具处理器初始化失败: {e}")
+            self.logger.error(f"Khởi tạo Trình xử lý công cụ thống nhất thất bại: {e}")
 
     async def _initialize_mcp_endpoint(self):
         """初始化MCP接入点"""
@@ -90,7 +90,7 @@ class UnifiedToolHandler:
                 and "你的" not in mcp_endpoint_url
                 and mcp_endpoint_url != "null"
             ):
-                self.logger.info(f"正在初始化MCP接入点: {mcp_endpoint_url}")
+                self.logger.info(f"Đang khởi tạo MCP endpoint: {mcp_endpoint_url}")
                 mcp_endpoint_client = await connect_mcp_endpoint(
                     mcp_endpoint_url, self.conn
                 )
@@ -114,31 +114,31 @@ class UnifiedToolHandler:
         except ImportError:
             pass  # 忽略导入错误
         except Exception as e:
-            self.logger.error(f"初始化Home Assistant失败: {e}")
+            self.logger.error(f"Khởi tạo Home Assistant thất bại: {e}")
 
     def get_functions(self) -> List[Dict[str, Any]]:
-        """获取所有工具的函数描述"""
+        """Lấy mô tả hàm của tất cả công cụ"""
         return self.tool_manager.get_function_descriptions()
 
     def current_support_functions(self) -> List[str]:
-        """获取当前支持的函数名称列表"""
+        """Lấy danh sách tên các hàm hiện đang hỗ trợ"""
         func_names = self.tool_manager.get_supported_tool_names()
-        self.logger.info(f"当前支持的函数列表: {func_names}")
+        self.logger.info(f"Danh sách các hàm hiện đang hỗ trợ: {func_names}")
         return func_names
 
     def upload_functions_desc(self):
-        """刷新函数描述列表"""
+        """Làm mới danh sách mô tả hàm"""
         self.tool_manager.refresh_tools()
-        self.logger.info("函数描述列表已刷新")
+        self.logger.info("Danh sách mô tả hàm đã được làm mới")
 
     def has_tool(self, tool_name: str) -> bool:
-        """检查是否有指定工具"""
+        """Kiểm tra xem có công cụ cụ thể không"""
         return self.tool_manager.has_tool(tool_name)
 
     async def handle_llm_function_call(
         self, conn, function_call_data: Dict[str, Any]
     ) -> Optional[ActionResponse]:
-        """处理LLM函数调用"""
+        """Xử lý gọi hàm từ LLM"""
         try:
             # 处理多函数调用
             if "function_calls" in function_call_data:
@@ -230,6 +230,6 @@ class UnifiedToolHandler:
             ):
                 await self.conn.mcp_endpoint_client.close()
 
-            self.logger.info("工具处理器清理完成")
+            self.logger.info("Dọn dẹp tài nguyên Trình xử lý công cụ hoàn tất")
         except Exception as e:
             self.logger.error(f"工具处理器清理失败: {e}")

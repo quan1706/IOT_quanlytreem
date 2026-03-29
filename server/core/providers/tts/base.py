@@ -90,7 +90,10 @@ class TTSProviderBase(ABC):
             # 需要删除文件的直接转为音频数据
             while max_repeat_time > 0:
                 try:
-                    audio_bytes = asyncio.run(self.text_to_speak(text, None))
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.text_to_speak(text, None), self.conn.loop
+                    )
+                    audio_bytes = future.result()
                     if audio_bytes:
                         self.tts_audio_queue.put((SentenceType.FIRST, None, text))
                         audio_bytes_to_data_stream(
@@ -123,7 +126,10 @@ class TTSProviderBase(ABC):
             try:
                 while not os.path.exists(tmp_file) and max_repeat_time > 0:
                     try:
-                        asyncio.run(self.text_to_speak(text, tmp_file))
+                        future = asyncio.run_coroutine_threadsafe(
+                            self.text_to_speak(text, tmp_file), self.conn.loop
+                        )
+                        future.result()
                     except Exception as e:
                         logger.bind(tag=TAG).warning(
                             f"语音生成失败{5 - max_repeat_time + 1}次: {text}，错误: {e}"
@@ -154,7 +160,10 @@ class TTSProviderBase(ABC):
             # 需要删除文件的直接转为音频数据
             while max_repeat_time > 0:
                 try:
-                    audio_bytes = asyncio.run(self.text_to_speak(text, None))
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.text_to_speak(text, None), self.conn.loop
+                    )
+                    audio_bytes = future.result()
                     if audio_bytes:
                         audio_datas = []
                         audio_bytes_to_data_stream(
@@ -186,7 +195,10 @@ class TTSProviderBase(ABC):
             try:
                 while not os.path.exists(tmp_file) and max_repeat_time > 0:
                     try:
-                        asyncio.run(self.text_to_speak(text, tmp_file))
+                        future = asyncio.run_coroutine_threadsafe(
+                            self.text_to_speak(text, tmp_file), self.conn.loop
+                        )
+                        future.result()
                     except Exception as e:
                         logger.bind(tag=TAG).warning(
                             f"语音生成失败{5 - max_repeat_time + 1}次: {text}，错误: {e}"

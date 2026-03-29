@@ -10,6 +10,7 @@ import asyncio
 import tempfile
 import traceback
 import threading
+import numpy as np
 import opuslib_next
 
 from abc import ABC, abstractmethod
@@ -93,6 +94,12 @@ class ASRProviderBase(ABC):
                 pcm_data = self.decode_opus(asr_audio_task)
 
             combined_pcm_data = b"".join(pcm_data)
+
+            # Áp dụng Digital Gain nếu được cấu hình
+            mic_gain = conn.config.get("ASR", {}).get(conn.config.get("selected_module", {}).get("ASR", ""), {}).get("mic_gain", 1.0)
+            if mic_gain != 1.0:
+                combined_pcm_data = self.apply_digital_gain(combined_pcm_data, mic_gain)
+                logger.bind(tag=TAG).debug(f"Đã áp dụng Digital Gain: {mic_gain}x")
 
             # Chuẩn bị trước dữ liệu WAV
             wav_data = None
@@ -186,6 +193,26 @@ class ASRProviderBase(ABC):
             )
         else:
             return text
+
+    def apply_digital_gain(self, pcm_data: bytes, gain: float) -> bytes:
+        """Áp dụng tăng cường độ âm thanh kỹ thuật số cho dữ liệu PCM 16-bit"""
+        try:
+            if len(pcm_data) == 0 or gain == 1.0:
+                return pcm_data
+
+            # Chuyển đổi byte sang mảng int16 sử dụng numpy để xử lý nhanh
+            audio_array = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32)
+            
+            # Nhân với hệ số gain
+            audio_array *= gain
+            
+            # Giới hạn biên độ (clipping) để tránh vỡ tiếng
+            audio_array = np.clip(audio_array, -32768, 32767).astype(np.int16)
+            
+            return audio_array.tobytes()
+        except Exception as e:
+            logger.bind(tag=TAG).error(f"Áp dụng Digital Gain thất bại: {e}")
+            return pcm_data
 
     def _pcm_to_wav(self, pcm_data: bytes) -> bytes:
         """Chuyển đổi dữ liệu PCM sang định dạng WAV"""

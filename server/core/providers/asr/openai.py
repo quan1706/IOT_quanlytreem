@@ -16,8 +16,9 @@ class ASRProvider(ASRProviderBase):
         self.api_key = config.get("api_key")
         self.api_url = config.get("base_url")
         self.model = config.get("model_name")
-        self.language = config.get("language", None)  # Ngôn ngữ nhận diện (vd: "vi" cho tiếng Việt)
+        self.language = config.get("language", None)
         self.output_dir = config.get("output_dir")
+        self.prompt = config.get("prompt", "quạt, nôi, bé, bật, tắt, nhạc, âm lượng") # Từ khóa gợi ý cho ASR
         self.delete_audio_file = delete_audio_file
 
         os.makedirs(self.output_dir, exist_ok=True)
@@ -45,7 +46,9 @@ class ASRProvider(ASRProviderBase):
                 "model": self.model
             }
             if self.language:
-                data["language"] = self.language  # Chỉ định ngôn ngữ để tránh nhận diện nhầm sang tiếng Anh
+                data["language"] = self.language
+            if self.prompt:
+                data["prompt"] = self.prompt  # Gợi ý từ khóa để Whisper nhận diện chính xác hơn
 
 
             with open(file_path, "rb") as audio_file:  # Dùng with để đảm bảo file được đóng

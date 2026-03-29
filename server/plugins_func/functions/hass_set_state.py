@@ -15,7 +15,7 @@ hass_set_state_function_desc = {
     "type": "function",
     "function": {
         "name": "hass_set_state",
-        "description": "设置homeassistant里设备的状态,包括开、关,调整灯光亮度、颜色、色温,调整播放器的音量,设备的暂停、继续、静音操作",
+        "description": "Thiết lập trạng thái thiết bị trong Home Assistant, bao gồm bật, tắt, điều chỉnh độ sáng, màu sắc, âm lượng, tạm dừng, tiếp tục, v.v.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -61,10 +61,10 @@ def hass_set_state(conn: "ConnectionHandler", entity_id="", state=None):
         ha_response = handle_hass_set_state(conn, entity_id, state)
         return ActionResponse(Action.REQLLM, ha_response, None)
     except asyncio.TimeoutError:
-        logger.bind(tag=TAG).error("设置Home Assistant状态超时")
-        return ActionResponse(Action.ERROR, "请求超时", None)
+        logger.bind(tag=TAG).error("Hết thời gian chờ thiết lập Home Assistant")
+        return ActionResponse(Action.ERROR, "Yêu cầu hết thời gian chờ", None)
     except Exception as e:
-        error_msg = f"执行Home Assistant操作失败"
+        error_msg = f"Thực hiện thao tác trên Home Assistant thất bại"
         logger.bind(tag=TAG).error(error_msg)
         return ActionResponse(Action.ERROR, error_msg, None)
 
@@ -80,12 +80,12 @@ def handle_hass_set_state(conn: "ConnectionHandler", entity_id, state):
     if len(domains) > 1:
         domain = domains[0]
     else:
-        return "执行失败，错误的设备id"
+        return "Thực thi thất bại, ID thiết bị không hợp lệ"
     action = ""
     arg = ""
     value = ""
     if state["type"] == "turn_on":
-        description = "设备已打开"
+        description = "Thiết bị đã được bật"
         if domain == "cover":
             action = "open_cover"
         elif domain == "vacuum":
@@ -93,7 +93,7 @@ def handle_hass_set_state(conn: "ConnectionHandler", entity_id, state):
         else:
             action = "turn_on"
     elif state["type"] == "turn_off":
-        description = "设备已关闭"
+        description = "Thiết bị đã được tắt"
         if domain == "cover":
             action = "close_cover"
         elif domain == "vacuum":
@@ -101,50 +101,50 @@ def handle_hass_set_state(conn: "ConnectionHandler", entity_id, state):
         else:
             action = "turn_off"
     elif state["type"] == "brightness_up":
-        description = "灯光已调亮"
+        description = "Đèn đã được tăng độ sáng"
         action = "turn_on"
         arg = "brightness_step_pct"
         value = 10
     elif state["type"] == "brightness_down":
-        description = "灯光已调暗"
+        description = "Đèn đã được giảm độ sáng"
         action = "turn_on"
         arg = "brightness_step_pct"
         value = -10
     elif state["type"] == "brightness_value":
-        description = f"亮度已调整到{state['input']}"
+        description = f"Độ sáng đã được điều chỉnh thành {state['input']}"
         action = "turn_on"
         arg = "brightness_pct"
         value = state["input"]
     elif state["type"] == "set_color":
-        description = f"颜色已调整到{state['rgb_color']}"
+        description = f"Màu sắc đã được đổi thành {state['rgb_color']}"
         action = "turn_on"
         arg = "rgb_color"
         value = state["rgb_color"]
     elif state["type"] == "set_kelvin":
-        description = f"色温已调整到{state['input']}K"
+        description = f"Nhiệt độ màu đã được chỉnh thành {state['input']}K"
         action = "turn_on"
         arg = "kelvin"
         value = state["input"]
     elif state["type"] == "volume_up":
-        description = "音量已调大"
+        description = "Âm lượng đã được tăng lên"
         action = state["type"]
     elif state["type"] == "volume_down":
-        description = "音量已调小"
+        description = "Âm lượng đã được giảm xuống"
         action = state["type"]
     elif state["type"] == "volume_set":
-        description = f"音量已调整到{state['input']}"
+        description = f"Âm lượng đã được đặt thành {state['input']}"
         action = state["type"]
         arg = "volume_level"
         value = state["input"]
         if state["input"] >= 1:
             value = state["input"] / 100
     elif state["type"] == "volume_mute":
-        description = f"设备已静音"
+        description = f"Thiết bị đã được tắt tiếng"
         action = state["type"]
         arg = "is_volume_muted"
         value = state["is_muted"]
     elif state["type"] == "pause":
-        description = f"设备已暂停"
+        description = f"Thiết bị đã tạm dừng"
         action = state["type"]
         if domain == "media_player":
             action = "media_pause"
@@ -153,13 +153,13 @@ def handle_hass_set_state(conn: "ConnectionHandler", entity_id, state):
         if domain == "vacuum":
             action = "pause"
     elif state["type"] == "continue":
-        description = f"设备已继续"
+        description = f"Thiết bị đã tiếp tục"
         if domain == "media_player":
             action = "media_play"
         if domain == "vacuum":
             action = "start"
     else:
-        return f"{domain} {state['type']}功能尚未支持"
+        return f"Tính năng {state['type']} cho {domain} hiện chưa hỗ trợ"
 
     if arg == "":
         data = {
@@ -176,4 +176,4 @@ def handle_hass_set_state(conn: "ConnectionHandler", entity_id, state):
     if response.status_code == 200:
         return description
     else:
-        return f"设置失败，错误码: {response.status_code}"
+        return f"Thiết lập thất bại, mã lỗi: {response.status_code}"

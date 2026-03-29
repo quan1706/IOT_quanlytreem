@@ -13,6 +13,9 @@ from core.handle.sendAudioHandle import send_stt_message, SentenceType
 
 TAG = __name__
 
+# Thư mục chứa các tệp âm thanh hệ thống
+ASSETS_DIR = "config/assets"
+
 
 async def handleAudioMessage(conn: "ConnectionHandler", audio):
     # Kiểm tra xem đoạn âm thanh hiện tại có tiếng người nói không (VAD)
@@ -61,6 +64,18 @@ async def startToChat(conn: "ConnectionHandler", text):
     except (json.JSONDecodeError, KeyError):
         # Thiết lập thất bại, tiếp tục dùng văn bản thực tế
         pass
+
+    # Bộ lọc ảo giác Whisper (Hallucination Filter)
+    asr_config = conn.config.get("ASR", {}).get(conn.config.get("selected_module", {}).get("ASR", ""), {})
+    filters = asr_config.get("hallucination_filters", [])
+    for f in filters:
+        if f.lower() in actual_text.lower():
+            conn.logger.bind(tag=TAG).warning(f"Phát hiện ảo giác ASR: '{actual_text}' (khớp filter: '{f}'). Hủy xử lý.")
+            # Thông báo cho người dùng là không nghe rõ thay vì trả lời lạc đề
+            error_text = "Dạ, em nghe không rõ, ba mẹ nói lại giúp em nhé!"
+            await send_stt_message(conn, error_text)
+            conn.executor.submit(conn.chat, error_text)
+            return
 
     # Lưu thông tin người nói xuống object kết nối
     if speaker_name:
@@ -118,16 +133,16 @@ async def no_voice_close_connect(conn: "ConnectionHandler", have_voice):
                 return
             prompt = end_prompt.get("prompt")
             if not prompt:
-                prompt = "Bảo với tôi một câu ngắn bằng Tiếng Việt rằng bạn phải đi nghỉ một lát!"
+                prompt = "Dạ ba mẹ ơi, em xin phép đi nghỉ một lát nhé, khi nào cần em cứ gọi 'Xin chào bé' là được ạ!"
             await startToChat(conn, prompt)
 
 
 async def max_out_size(conn: "ConnectionHandler"):
     # Đọc thoại thông báo hết Token/vượt giới hạn ngày
     conn.client_abort = False
-    text = "Xin lỗi nha, hôm nay tôi bận một chút, hẹn bạn dịp sau nhé!"
+    text = "Dạ xin lỗi ba mẹ, hôm nay em đã nói chuyện hơi nhiều rồi. Hẹn ba mẹ dịp khác em lại tâm sự tiếp nhé!"
     await send_stt_message(conn, text)
-    file_path = "config/assets/max_output_size.wav"
+    file_path = f"{ASSETS_DIR}/max_output_size.wav"
     opus_packets = await audio_to_data(file_path)
     conn.tts.tts_audio_queue.put((SentenceType.LAST, opus_packets, text))
     conn.close_after_chat = True
@@ -136,17 +151,18 @@ async def max_out_size(conn: "ConnectionHandler"):
 async def check_bind_device(conn: "ConnectionHandler"):
     if conn.bind_code:
         # Check bind_code phải đủ 6 ký tự
+        # Check if bind_code has 6 characters
         if len(conn.bind_code) != 6:
-            conn.logger.bind(tag=TAG).error(f"Định dạng bind_code không hợp lệ: {conn.bind_code}")
-            text = "Lỗi định dạng, vui lòng kiểm tra Cấu hình."
+            conn.logger.bind(tag=TAG).error(f"Invalid bind_code format: {conn.bind_code}")
+            text = "Dạ có lỗi định dạng mã kết nối, ba mẹ vui lòng kiểm tra lại cấu hình nhé."
             await send_stt_message(conn, text)
             return
 
-        text = f"Vui lòng đăng nhập điều khiển, nhập mã {conn.bind_code} và kết nối lại thiết bị."
+        text = f"Dạ, anh chị vui lòng đăng nhập để điều khiển, nhập mã {conn.bind_code} và kết nối lại thiết bị nhé."
         await send_stt_message(conn, text)
 
-        # Phát âm thanh thông báo
-        music_path = "config/assets/bind_code.wav"
+        # Play notification sound
+        music_path = f"{ASSETS_DIR}/bind_code.wav"
         opus_packets = await audio_to_data(music_path)
         conn.tts.tts_audio_queue.put((SentenceType.FIRST, opus_packets, text))
 
@@ -164,7 +180,7 @@ async def check_bind_device(conn: "ConnectionHandler"):
     else:
         # Thông báo lỗi ko có thông tin cập nhật thiết bị gốc
         conn.client_abort = False
-        text = f"Không kiếm được phiên bản này, vui lòng điền đúng file cập nhật OTA."
+        text = f"Dạ em không tìm thấy phiên bản này, anh chị vui lòng kiểm tra lại tệp cập nhật nhé."
         await send_stt_message(conn, text)
         music_path = "config/assets/bind_not_found.wav"
         opus_packets = await audio_to_data(music_path)

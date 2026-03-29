@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sơ đồ Mạch điện ESP32 Baby Care</title>
+    <!-- Thư viện Mermaid JS mới nhất -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 1000px;
+            text-align: center;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Sơ đồ Đấu mạch Nguyên lý ESP32 (Power Distribution)</h2>
+    <p>Sơ đồ thể hiện cách cấp nguồn VIN (5V) cho tải nặng và 3.3V cho cảm biến</p>
+    
+    <div class="mermaid">
+    graph LR
+        %% CORE BỘ NÃO
+        ESP32[ESP32 DevKit V1]:::core
+
+        %% ==========================================
+        %% NHÓM 1: CẢM BIẾN & HIỂN THỊ (Nguồn 3.3V)
+        %% ==========================================
+        subgraph SENSOR [Nhóm Cảm biến & Hiển thị - Dùng nguồn 3.3V]
+            DHT[Cảm biến DHT11]:::sensor
+            OLED[Màn hình OLED]:::sensor
+        end
+
+        %% Nối dây Nhóm 1
+        ESP32 -- "Chân 3.3V" --> DHT
+        ESP32 -- "Chân GND" --> DHT
+        ESP32 -- "Chân D13" --> DHT
+
+        ESP32 -- "Chân 3.3V" --> OLED
+        ESP32 -- "Chân GND" --> OLED
+        ESP32 -- "Chân D21 (SDA)" --> OLED
+        ESP32 -- "Chân D22 (SCL)" --> OLED
+
+        %% ==========================================
+        %% NHÓM 2: ÂM THANH (Micro dùng 3.3V - Loa dùng 5V/VIN)
+        %% ==========================================
+        subgraph AUDIO [Nhóm Âm thanh IN/OUT]
+            MIC[Micro INMP441]:::mic
+            SPK[Loa MAX98357A]:::spk
+        end
+
+        %% Nối dây Nhóm 2 - Micro
+        ESP32 -- "Chân 3.3V" --> MIC
+        ESP32 -- "Chân GND" --> MIC
+        ESP32 -- "Chân D25 (L/R Clock)" --> MIC
+        ESP32 -- "Chân D26 (Bit Clock)" --> MIC
+        ESP32 -- "Chân D32 (Data IN)" --> MIC
+
+        %% Nối dây Nhóm 2 - Loa
+        ESP32 -- "Chân VIN (5V)" --> SPK
+        ESP32 -- "Chân GND" --> SPK
+        ESP32 -- "Chân D27 (L/R Clock)" --> SPK
+        ESP32 -- "Chân D14 (Bit Clock)" --> SPK
+        ESP32 -- "Chân D33 (Data OUT)" --> SPK
+
+        %% ==========================================
+        %% NHÓM 3: KHỐI CHẤP HÀNH TẢI NẶNG (Quạt & Servo)
+        %% BẮT BUỘC DÙNG NGUỒN NGOÀI HOẶC CHÂN VIN
+        %% ==========================================
+        subgraph MOTOR [Nhóm Tải nặng - Bắt buộc nguồn 5V mạnh]
+            SERVO[Động cơ Servo Nôi]:::motor
+            RELAY[Phân module Relay Bật Quạt]:::motor
+            FAN((Quạt vật lý)):::fan
+            EXT_POWER{{Nguồn Adapter 5V Ngoài}}:::power
+        end
+
+        %% Nối dây Nhóm 3 - Nguồn Tách cho Servo và Relay
+        EXT_POWER -. "Nguồn 5V Mạnh" .-> SERVO
+        EXT_POWER -. "GND Cấp" .-> SERVO
+        
+        EXT_POWER -. "Nguồn 5V Mạnh" .-> RELAY
+        EXT_POWER -. "GND Cấp" .-> RELAY
+        
+        %% Điểm Đấu Mass chung (QUAN TRỌNG)
+        EXT_POWER -. "GND Nối Chung (Bắt Buộc)" .-> ESP32
+
+        %% Cáp Tín Hiệu từ ESP32 sang Motor
+        ESP32 -- "Chân D23 (PWM)" --> SERVO
+        ESP32 -- "Chân D5 (Tín hiệu On/Off)" --> RELAY
+
+        %% Ngõ ra Relay điều khiển Quạt
+        RELAY -- "Chân Thường Mở (NO)" --> FAN
+        EXT_POWER -. "Đường Cấp Tải (VD: Điện 12V/220V qua Relay GND/L)" .-> FAN
+
+        %% ==========================================
+        %% Đặt màu sắc CSS để dễ nhìn
+        %% ==========================================
+        classDef core fill:#f39c12,stroke:#d35400,stroke-width:4px,color:white,font-weight:bold;
+        classDef sensor fill:#3498db,stroke:#2980b9,stroke-width:2px,color:white;
+        classDef mic fill:#9b59b6,stroke:#8e44ad,stroke-width:2px,color:white;
+        classDef spk fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:white;
+        classDef motor fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:white,font-weight:bold;
+        classDef fan fill:#1abc9c,stroke:#16a085,stroke-width:2px,color:white;
+        classDef power fill:#e67e22,stroke:#d35400,stroke-width:3px,color:white,stroke-dasharray: 5 5;
+    </div>
+
+    <!-- Nút in ảnh -->
+    <button onclick="window.print()">🖨️ Lưu thành PDF / In Ảnh</button>
+</div>
+
+</body>
+</html>

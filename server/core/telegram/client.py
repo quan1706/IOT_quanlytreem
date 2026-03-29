@@ -5,6 +5,7 @@ HTTP client cấp thấp giao tiếp với Telegram Bot API.
 Sử dụng 1 shared aiohttp.ClientSession thay vì tạo mới mỗi request.
 """
 import json
+import asyncio
 import aiohttp
 from config.logger import setup_logging
 
@@ -312,8 +313,11 @@ class TelegramClient:
                         return data.get("result", [])
                     self.logger.bind(tag=TAG).error(f"getUpdates error: {data}")
                 return []
+        except asyncio.TimeoutError:
+            return []
         except Exception as e:
-            self.logger.bind(tag=TAG).error(f"Lỗi getUpdates: {e}")
+            err_msg = str(e) or "Timeout hoặc mất kết nối"
+            self.logger.bind(tag=TAG).error(f"Lỗi getUpdates: {err_msg}")
             return []
 
     async def get_me(self) -> dict:

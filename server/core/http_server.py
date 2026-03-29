@@ -338,6 +338,10 @@ class SimpleHttpServer:
                 
             self.logger.bind(tag=TAG).info(f"✅ [HQ] Đã lưu ảnh thành công: {filename}")
             DashboardUpdater.add_system_log("Server", "Web", f"Đã lưu ảnh HQ: {filename}")
+
+            # [TÍCH HỢP] Tự động chạy nhận diện tư thế từ ảnh HQ
+            if hasattr(self, 'pose_handler'):
+                asyncio.create_task(self.pose_handler._process_pose_background(image_bytes))
             
             if hasattr(self, '_telegram_bot') and self._telegram_bot:
                 caption = (

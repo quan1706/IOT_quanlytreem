@@ -21,6 +21,7 @@ _CMD_MAP = {
     "stop_all":  "dung",
     "check_pose": "capture_pose",
     "capture_hq": "capture_hq",
+    "hinh_anh":   "capture_pose", # Ánh xạ nút Telegram 'Hình ảnh' sang capture_pose
 }
 
 # Number of chart data points per range

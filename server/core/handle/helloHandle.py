@@ -20,15 +20,15 @@ TAG = __name__
 WAKEUP_CONFIG = {
     "refresh_time": 10,
     "responses": [
-        "Con đây rồi, ba mẹ cần gì ạ?",
-        "Dạ con nghe, ba mẹ cứ nói ạ.",
-        "Baby Guard đây, ba mẹ cần con giúp gì?",
-        "Xin chào, con đang lắng nghe đây!",
-        "Dạ, ba mẹ nói đi, con sẵn sàng rồi.",
-        "Con nghe thấy rồi, ba mẹ cần gì ạ?",
-        "Dạ có con đây, ba mẹ cứ nói.",
-        "Xin chào! Con có thể giúp gì cho ba mẹ?",
-        "Con đây ạ, ba mẹ cần hỗ trợ gì không?",
+        "Em đây rồi, ba mẹ cần gì ạ?",
+        "Dạ em nghe, ba mẹ cứ nói ạ.",
+        "Baby Guard đây, anh chị cần em giúp gì?",
+        "Xin chào, em đang lắng nghe đây!",
+        "Dạ, ba mẹ nói đi, em sẵn sàng rồi.",
+        "Em nghe thấy rồi, ba mẹ cần gì ạ?",
+        "Dạ có em đây, anh chị cứ nói ạ.",
+        "Xin chào! Em có thể giúp gì cho mình không?",
+        "Em đây ạ, ba mẹ cần hỗ trợ gì không?",
     ],
 }
 
@@ -40,7 +40,7 @@ _wakeup_response_lock = asyncio.Lock()
 
 
 async def handleHelloMessage(conn: "ConnectionHandler", msg_json):
-    """处理hello消息"""
+    """Xử lý tin nhắn hello"""
     audio_params = msg_json.get("audio_params")
     if audio_params:
         format = audio_params.get("format")
@@ -52,9 +52,9 @@ async def handleHelloMessage(conn: "ConnectionHandler", msg_json):
         conn.logger.bind(tag=TAG).debug(f"客户端特性: {features}")
         conn.features = features
         if features.get("mcp"):
-            conn.logger.bind(tag=TAG).debug("客户端支持MCP")
+            conn.logger.bind(tag=TAG).debug("Khách hàng có hỗ trợ MCP")
             conn.mcp_client = MCPClient()
-            # 发送初始化
+            # Gửi tin nhắn khởi tạo
             asyncio.create_task(send_mcp_initialize_message(conn))
 
     from core.serverToClients.esp32_commander import ESP32Commander
@@ -101,7 +101,7 @@ async def checkWakeupWords(conn: "ConnectionHandler", text):
             "voice": "default",
             "file_path": "config/assets/wakeup_words_short.wav",
             "time": 0,
-            "text": "Con đây rồi, ba mẹ cần gì ạ?",
+            "text": "Em đây rồi, ba mẹ cần gì ạ?",
         }
 
     # 获取音频数据
@@ -112,7 +112,7 @@ async def checkWakeupWords(conn: "ConnectionHandler", text):
     # 将唤醒词回复视为新会话，生成新的 sentence_id，确保流控器重置
     conn.sentence_id = str(uuid.uuid4().hex)
 
-    conn.logger.bind(tag=TAG).info(f"播放唤醒词回复: {response.get('text')}")
+    conn.logger.bind(tag=TAG).info(f"Phát phản hồi đánh thức: {response.get('text')}")
     await sendAudioMessage(conn, SentenceType.FIRST, opus_packets, response.get("text"))
     await sendAudioMessage(conn, SentenceType.LAST, [], None)
 

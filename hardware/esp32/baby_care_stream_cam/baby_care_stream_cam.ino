@@ -7,11 +7,11 @@
 #include "soc/rtc_cntl_reg.h"
 
 // --- CẤU HÌNH WIFI ---
-const char* ssid = "Phòng 402";
-const char* password = "79797979";
+const char* ssid = "Thành Đạt";
+const char* password = "123456789";
 
 // --- CẤU HÌNH SERVER ---
-const char* server_ip = "192.168.0.32";
+const char* server_ip = "172.20.10.9";
 const int   http_port = 8003;
 const int   ws_port   = 8000;
 

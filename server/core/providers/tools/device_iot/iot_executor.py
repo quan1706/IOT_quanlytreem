@@ -1,4 +1,4 @@
-"""设备端IoT工具执行器"""
+"""Trình thực thi công cụ IoT trên thiết bị"""
 
 import json
 import asyncio
@@ -8,7 +8,7 @@ from plugins_func.register import Action, ActionResponse
 
 
 class DeviceIoTExecutor(ToolExecutor):
-    """设备端IoT工具执行器"""
+    """Trình thực thi công cụ IoT trên thiết bị"""
 
     def __init__(self, conn):
         self.conn = conn
@@ -20,13 +20,12 @@ class DeviceIoTExecutor(ToolExecutor):
         """执行设备端IoT工具"""
         if not self.has_tool(tool_name):
             return ActionResponse(
-                action=Action.NOTFOUND, response=f"IoT工具 {tool_name} 不存在"
+                action=Action.NOTFOUND, response=f"Công cụ IoT {tool_name} không tồn tại"
             )
 
         try:
-            # 解析工具名称，获取设备名和操作类型
+            # 解析工具名称，获取设备名 và thao tác (cú pháp: get_devicename_property)
             if tool_name.startswith("get_"):
-                # 查询操作：get_devicename_property
                 parts = tool_name.split("_", 2)
                 if len(parts) >= 3:
                     device_name = parts[1]
@@ -36,7 +35,7 @@ class DeviceIoTExecutor(ToolExecutor):
                     if value is not None:
                         # 处理响应模板
                         response_success = arguments.get(
-                            "response_success", "查询成功：{value}"
+                            "response_success", "Truy vấn thành công: {value}"
                         )
                         response = response_success.replace("{value}", str(value))
 
@@ -46,7 +45,7 @@ class DeviceIoTExecutor(ToolExecutor):
                         )
                     else:
                         response_failure = arguments.get(
-                            "response_failure", f"无法获取{device_name}的状态"
+                            "response_failure", f"Không thể lấy trạng thái của {device_name}"
                         )
                         return ActionResponse(
                             action=Action.ERROR, response=response_failure
@@ -73,30 +72,31 @@ class DeviceIoTExecutor(ToolExecutor):
                     # 等待状态更新
                     await asyncio.sleep(0.1)
 
-                    response_success = arguments.get("response_success", "操作成功")
+                    # Lấy nội dung phản hồi thành công từ arguments
+                    response_success = arguments.get("response_success", "Đã thực hiện lệnh thành công")
 
-                    # 处理响应中的占位符
-                    for param_name, param_value in control_params.items():
-                        placeholder = "{" + param_name + "}"
-                        if placeholder in response_success:
-                            response_success = response_success.replace(
-                                placeholder, str(param_value)
-                            )
-                        if "{value}" in response_success:
-                            response_success = response_success.replace(
-                                "{value}", str(param_value)
-                            )
-                            break
+                    if response_success == "操作成功" or response_success == "Success" or response_success == "Đã thực hiện lệnh thành công":
+                        # Chỉnh lại cho đúng phong cách Nanny Assistant
+                        if "quat" in tool_name:
+                            if "off" in method_name or "stop" in method_name or "tat" in method_name:
+                                response_success = "Dạ, em đã tắt quạt rồi ạ!"
+                            else:
+                                response_success = "Dạ, em đã bật quạt cho bé rồi ạ!"
+                        elif "cradle" in tool_name or "noi" in tool_name:
+                            if "off" in method_name or "stop" in method_name:
+                                response_success = "Dạ, em đã dừng nôi rồi ạ!"
+                            else:
+                                response_success = "Dạ, em đang bật nôi ru bé đây ạ!"
 
                     return ActionResponse(
                         action=Action.REQLLM,
                         result=response_success,
                     )
 
-            return ActionResponse(action=Action.ERROR, response="无法解析IoT工具名称")
+            return ActionResponse(action=Action.ERROR, response="Không thể phân tích tên công cụ IoT")
 
         except Exception as e:
-            response_failure = arguments.get("response_failure", "操作失败")
+            response_failure = arguments.get("response_failure", "Thao tác thất bại")
             return ActionResponse(action=Action.ERROR, response=response_failure)
 
     async def _get_iot_status(self, device_name: str, property_name: str):
@@ -130,7 +130,7 @@ class DeviceIoTExecutor(ToolExecutor):
                         await self.conn.websocket.send(send_message)
                         return
 
-        raise Exception(f"未找到设备{device_name}的方法{method_name}")
+        raise Exception(f"Không tìm thấy phương thức {method_name} cho thiết bị {device_name}")
 
     def register_iot_tools(self, descriptors: list):
         """注册IoT工具"""
@@ -147,17 +147,17 @@ class DeviceIoTExecutor(ToolExecutor):
                         "type": "function",
                         "function": {
                             "name": tool_name,
-                            "description": f"查询{device_desc}的{prop_info['description']}",
+                            "description": f"Truy vấn {prop_info['description']} của {device_desc}",
                             "parameters": {
                                 "type": "object",
                                 "properties": {
                                     "response_success": {
                                         "type": "string",
-                                        "description": f"查询成功时的友好回复，必须使用{{value}}作为占位符表示查询到的值",
+                                        "description": f"Câu trả lời khi truy vấn thành công, phải sử dụng {{value}} để đại diện cho giá trị tìm được",
                                     },
                                     "response_failure": {
                                         "type": "string",
-                                        "description": f"查询失败时的友好回复",
+                                        "description": f"Câu trả lời khi truy vấn thất bại",
                                     },
                                 },
                                 "required": ["response_success", "response_failure"],
@@ -200,11 +200,11 @@ class DeviceIoTExecutor(ToolExecutor):
                         {
                             "response_success": {
                                 "type": "string",
-                                "description": "操作成功时的友好回复",
+                                "description": "Câu trả lời thân thiện khi thao tác thành công",
                             },
                             "response_failure": {
                                 "type": "string",
-                                "description": "操作失败时的友好回复",
+                                "description": "Câu trả lời thân thiện khi thao tác thất bại",
                             },
                         }
                     )

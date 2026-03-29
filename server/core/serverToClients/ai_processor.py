@@ -70,8 +70,9 @@ class AIProcessor:
                 reply = result.get("reply", "")
 
                 # Lọc bỏ "none"
+                actions = [a for a in actions if a.lower() != "none"]
                 # Trả về kết quả ngay cả khi không có actions (đối thoại bình thường)
-                return {"actions": valid_actions, "reply": reply}
+                return {"actions": actions, "reply": reply}
             except Exception as e:
                 setup_logging().bind(tag=TAG).error(f"Lỗi parse JSON từ AI: {e}")
         

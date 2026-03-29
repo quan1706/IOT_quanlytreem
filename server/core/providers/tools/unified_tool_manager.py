@@ -1,4 +1,4 @@
-"""统一工具管理器"""
+"""Trình quản lý công cụ thống nhất"""
 
 from typing import Dict, List, Optional, Any
 from config.logger import setup_logging
@@ -7,7 +7,7 @@ from .base import ToolType, ToolDefinition, ToolExecutor
 
 
 class ToolManager:
-    """统一工具管理器，管理所有类型的工具"""
+    """Trình quản lý công cụ thống nhất, quản lý tất cả các loại công cụ"""
 
     def __init__(self, conn):
         self.conn = conn
@@ -20,7 +20,7 @@ class ToolManager:
         """注册工具执行器"""
         self.executors[tool_type] = executor
         self._invalidate_cache()
-        self.logger.debug(f"注册工具执行器: {tool_type.value}")
+        self.logger.debug(f"Đăng ký trình thực thi công cụ: {tool_type.value}")
 
     def _invalidate_cache(self):
         """使缓存失效"""
@@ -41,7 +41,7 @@ class ToolManager:
                         self.logger.warning(f"工具名称冲突: {name}")
                     all_tools[name] = definition
             except Exception as e:
-                self.logger.error(f"获取{tool_type.value}工具时出错: {e}")
+                self.logger.error(f"Lỗi khi lấy công cụ {tool_type.value}: {e}")
 
         self._cached_tools = all_tools
         return all_tools
@@ -92,13 +92,13 @@ class ToolManager:
                 )
 
             # 执行工具
-            self.logger.info(f"执行工具: {tool_name}，参数: {arguments}")
+            self.logger.info(f"Thực thi công cụ: {tool_name}, tham số: {arguments}")
             result = await executor.execute(self.conn, tool_name, arguments)
-            self.logger.debug(f"工具执行结果: {result}")
+            self.logger.debug(f"Kết quả thực thi công cụ: {result}")
             return result
 
         except Exception as e:
-            self.logger.error(f"执行工具 {tool_name} 时出错: {e}")
+            self.logger.error(f"Lỗi khi thực thi công cụ {tool_name}: {e}")
             return ActionResponse(action=Action.ERROR, response=str(e))
 
     def get_supported_tool_names(self) -> List[str]:
@@ -109,7 +109,7 @@ class ToolManager:
     def refresh_tools(self):
         """刷新工具缓存"""
         self._invalidate_cache()
-        self.logger.debug("工具缓存已刷新")
+        self.logger.debug("Đã làm mới bộ nhớ đệm công cụ")
 
     def get_tool_statistics(self) -> Dict[str, int]:
         """获取工具统计信息"""
@@ -119,6 +119,6 @@ class ToolManager:
                 tools = executor.get_tools()
                 stats[tool_type.value] = len(tools)
             except Exception as e:
-                self.logger.error(f"获取{tool_type.value}工具统计时出错: {e}")
+                self.logger.error(f"Lỗi khi lấy thống kê công cụ {tool_type.value}: {e}")
                 stats[tool_type.value] = 0
         return stats

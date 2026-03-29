@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kế hoạch Thuyết trình & Chấm điểm (30 Phút)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 0 auto; padding: 40px; background-color: #f9f9f9; }
+        .container { background-color: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 15px; }
+        h2 { color: #2980b9; border-left: 5px solid #3498db; padding-left: 10px; margin-top: 30px; }
+        h3 { color: #16a085; }
+        .member { background-color: #ecf0f1; padding: 20px; border-radius: 6px; margin-bottom: 20px; }
+        .member-header { font-weight: bold; font-size: 1.2em; color: #2c3e50; margin-bottom: 10px; }
+        .timeline { font-style: italic; color: #e67e22; font-weight: bold; }
+        code { background-color: #f4f4f4; padding: 2px 5px; border-radius: 4px; font-family: 'Courier New', Courier, monospace; }
+        ul { padding-left: 20px; }
+        .demo-section { border: 2px dashed #e74c3c; padding: 20px; border-radius: 8px; background-color: #fff5f5; }
+        .qa-section { border: 2px dotted #27ae60; padding: 20px; border-radius: 8px; background-color: #f0fff4; }
+        @media print { body { background-color: white; padding: 0; } .container { box-shadow: none; width: 100%; border: none; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bản kế hoạch Thuyết trình Dự án Baby Care</h1>
+        <p style="text-align:center; color: #7f8c8d;">Dành cho nhóm 3 thành viên - Tổng thời gian: 30 phút</p>
+
+        <div class="member">
+            <div class="member-header">⏱️ Timeline Tổng quát</div>
+            <ul>
+                <li><strong>Thuyết trình:</strong> 17-20 phút (Chia cho 3 người)</li>
+                <li><strong>Demo Sản phẩm:</strong> 5 phút</li>
+                <li><strong>Vấn đáp (Q&A):</strong> 5 phút</li>
+            </ul>
+        </div>
+
+        <div class="member">
+            <div class="member-header">👤 Người 1: Giới thiệu & Cơ sở dự án <span class="timeline">(0-6 Phút)</span></div>
+            <p><strong>Nội dung:</strong></p>
+            <ul>
+                <li>Giới thiệu thành viên nhóm & Quản lý kế hoạch.</li>
+                <li>Phân tích thị trường, vấn đề thực tế (SIDS, mệt mỏi của phụ huynh).</li>
+                <li>Sơ đồ mạch điện, linh kiện ESP32 & Logic xử lý tại chỗ (Edge Computing).</li>
+            </ul>
+        </div>
+
+        <div class="member">
+            <div class="member-header">👤 Người 2: Giải thuật & Tương tác thông minh <span class="timeline">(6-12 Phút)</span></div>
+            <p><strong>Nội dung:</strong></p>
+            <ul>
+                <li>Sơ đồ giải thuật Voice Control (Whisper/ChatGLM-4).</li>
+                <li>Giải thích các đoạn Code xử lý âm thanh và điều hướng hành động.</li>
+                <li>Quản lý Dashboard & Telegram Bot (Điều khiển từ xa).</li>
+            </ul>
+        </div>
+
+        <div class="member">
+            <div class="member-header">👤 Người 3: Thị giác & Hệ thống tự động <span class="timeline">(12-17 Phút)</span></div>
+            <p><strong>Nội dung:</strong></p>
+            <ul>
+                <li>Sơ đồ giải thuật Gemini AI (Thị giác: Pose detection).</li>
+                <li>Sơ đồ giải thuật YAMNet AI (Thính giác: Cry detection).</li>
+                <li>Giải thích Code xử lý ảnh và cơ chế tự động báo động.</li>
+            </ul>
+        </div>
+
+        <div class="demo-section">
+            <div class="member-header" style="color: #e74c3c;">🧪 Chương trình Demo (5 Phút)</div>
+            <ul>
+                <li>Người 1 chỉ dẫn phần cứng, Người 2 ra lệnh giọng nói và xem Telegram.</li>
+                <li>Người 3 trình diễn kịch bản an toàn (Bé khóc -> AI dỗ dành; Bé nằm sấp -> AI cảnh báo).</li>
+            </ul>
+        </div>
+
+        <div class="qa-section" style="margin-top: 20px;">
+            <div class="member-header" style="color: #27ae60;">❓ Gợi ý Vấn đáp (Q&A)</div>
+            <p>Nhấn mạnh: <strong>WebSockets</strong> (Tốc độ truyền lệnh), <strong>Multi-AI Cloud</strong> (Sự thông minh vượt trội) và <strong>Edge Control</strong> (Đảm bảo an toàn ngay cả khi mất mạng).</p>
+        </div>
+        
+        <p style="text-align: center; margin-top: 40px; font-size: 0.9em; color: #bdc3c7;">
+            Nhấn <strong>Ctrl + P</strong> và chọn "Save as PDF" để xuất file này ra PDF.
+        </p>
+    </div>
+</body>
+</html>
