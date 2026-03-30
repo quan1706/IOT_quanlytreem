@@ -51,7 +51,7 @@ unsigned long lastServoStepTime = 0;
 const char* WIFI_SSID     = "Thành Đạt";           // Tên WiFi nhà bạn
 const char* WIFI_PASSWORD = "123456789";             // Mật khẩu WiFi (SỬA LẠI CHO ĐÚNG)
 
-const char* SERVER_IP     = "172.20.10.11";      // IP máy tính chạy Server (ĐÃ CẬP NHẬT)
+const char* SERVER_IP     = "172.20.10.9";      // IP máy tính chạy Server (ĐÃ CẬP NHẬT)
 const int   SERVER_PORT   = 8000;                   // Port WebSocket Server
 const char* SERVER_PATH   = "/xiaozhi/v1/";         // Đường dẫn WebSocket
 

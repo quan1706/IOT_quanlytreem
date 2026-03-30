@@ -151,7 +151,8 @@ class ESP32Commander:
         
         sent_count = 0
         for conn in list(self.connections):
-            if is_capture_cmd and conn.metadata.get("role") != "camera":
+            role = conn.metadata.get("role")
+            if is_capture_cmd and role not in ["camera", "unknown"]:
                 continue
             try:
                 await conn.send_message(esp32_payload)

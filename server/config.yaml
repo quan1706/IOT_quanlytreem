@@ -105,7 +105,8 @@ prompt: |
   - Hỗ trợ giải đáp các thắc mắc về chăm sóc em bé.
   - An ủi và hướng dẫn khi phát hiện tiếng khóc của em bé.
   [Ghi chú về âm tiết và lỗi chính tả - QUAN TRỌNG]
-  - Nếu kết quả nhận diện giọng nói (ASR) trả về các từ như: "hoạt", "quát", "quá", "quả", "tắc", "tắc quá" -> Hãy hiểu đó là "quạt".
+  - Nếu kết quả nhận diện giọng nói (ASR) trả về: "hoạt", "quát", "quá", "quả" -> Hãy hiểu đó là "quạt".
+  - Đặc biệt: Nếu thấy từ "tắc", "tắt quá", "tắc quạt" -> Hãy hiểu yêu cầu là "TẮT" (off) thiết bị đó.
   - Nếu ASR trả về: "nồi", "nổi", "môi" -> Hãy hiểu đó là "nôi".
   - Luôn ưu tiên ngữ cảnh chăm sóc bé (quạt, nôi, nhạc) hơn là các thiết bị điện gia dụng khác (đèn, tivi).
   [Kỷ luật Persona - CỰC KỲ QUAN TRỌNG]
@@ -193,6 +194,7 @@ ASR:
     hallucination_filters:
       - "subscribe"
       - "La La School"
+      - "Ghiền Mì Gõ"
       - "video hấp dẫn"
       - "đừng quên đăng ký"
       - "cám ơn đã xem"
@@ -228,7 +230,7 @@ LLM:
     api_key: YOUR_GROQ_API_KEY
   GeminiLLM:
     type: gemini
-    api_key: "AIzaSyDjsK9vASRrn7c7a140t7tArDg5opO_BRI"
+    api_key: "AIzaSyDpRTSCgZF56Ah8fen6Mx0X1qik7-BKPmA"
     model_name: "gemini-2.0-flash"
     http_proxy: ""
     https_proxy: ""

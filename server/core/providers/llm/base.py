@@ -10,14 +10,14 @@ class LLMProviderBase(ABC):
         """LLM response generator"""
         pass
 
-    def response_no_stream(self, system_prompt, user_prompt, **kwargs):
+    async def response_no_stream(self, system_prompt, user_prompt, **kwargs):
         # 构造对话格式
         dialogue = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
         result = ""
-        for part in self.response("", dialogue, **kwargs):
+        async for part in self.response("", dialogue, **kwargs):
             result += part
         return result
     

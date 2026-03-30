@@ -36,14 +36,14 @@ cradle_control_desc = {
     "type": "function",
     "function": {
         "name": "cradle_control",
-        "description": "Bật hoặc tắt nôi ru bé ngủ.",
+        "description": "Điều khiển tắt nôi / bật nôi (ru võng). Chấp nhận: 'tắt đôi', 'dừng nuôi', 'tắt nuôi'.",
         "parameters": {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string",
                     "enum": ["on", "off"],
-                    "description": "Hành động: 'on' để bật, 'off' để tắt."
+                    "description": "Bật/Ru em ('on'), Tắt/Dừng/Yên ('off')."
                 }
             },
             "required": ["action"],
@@ -66,14 +66,14 @@ fan_control_desc = {
     "type": "function",
     "function": {
         "name": "fan_control",
-        "description": "Bật hoặc tắt quạt trong phòng bé.",
+        "description": "Điều khiển bật quạt / tắt quạt. Chấp nhận: 'bật hoạt', 'tắt hoạt'.",
         "parameters": {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string",
                     "enum": ["on", "off"],
-                    "description": "Hành động: 'on' để bật, 'off' để tắt."
+                    "description": "Bật/Mở ('on'), Tắt/Ngừng ('off')."
                 }
             },
             "required": ["action"],

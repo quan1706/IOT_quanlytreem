@@ -85,6 +85,8 @@ class TTSProviderBase(ABC):
 
     def to_tts_stream(self, text, opus_handler: Callable[[bytes], None] = None) -> None:
         text = MarkdownCleaner.clean_markdown(text)
+        if not text or not text.strip():
+            return None
         max_repeat_time = 5
         if self.delete_audio_file:
             # 需要删除文件的直接转为音频数据
@@ -132,9 +134,9 @@ class TTSProviderBase(ABC):
                         future.result()
                     except Exception as e:
                         logger.bind(tag=TAG).warning(
-                            f"语音生成失败{5 - max_repeat_time + 1}次: {text}，错误: {e}"
+                            f"Tạo giọng nói thất bại lần thứ {5 - max_repeat_time + 1}: {text}, lỗi: {e}"
                         )
-                        # 未执行成功，删除文件
+                        # Tạo thất bại, xóa tệp
                         if os.path.exists(tmp_file):
                             os.remove(tmp_file)
                         max_repeat_time -= 1
@@ -155,6 +157,8 @@ class TTSProviderBase(ABC):
     
     def to_tts(self, text):
         text = MarkdownCleaner.clean_markdown(text)
+        if not text or not text.strip():
+            return None
         max_repeat_time = 5
         if self.delete_audio_file:
             # 需要删除文件的直接转为音频数据
@@ -178,16 +182,16 @@ class TTSProviderBase(ABC):
                         max_repeat_time -= 1
                 except Exception as e:
                     logger.bind(tag=TAG).warning(
-                        f"语音生成失败{5 - max_repeat_time + 1}次: {text}，错误: {e}"
+                        f"Tạo giọng nói thất bại lần thứ {5 - max_repeat_time + 1}: {text}, lỗi: {e}"
                     )
                     max_repeat_time -= 1
             if max_repeat_time > 0:
                 logger.bind(tag=TAG).info(
-                    f"语音生成成功: {text}，重试{5 - max_repeat_time}次"
+                    f"Tạo giọng nói thành công: {text}, thử lại {5 - max_repeat_time} lần"
                 )
             else:
                 logger.bind(tag=TAG).error(
-                    f"语音生成失败: {text}，请检查网络或服务是否正常"
+                    f"Tạo giọng nói thất bại: {text}, vui lòng kiểm tra mạng hoặc dịch vụ"
                 )
             return None
         else:
@@ -201,20 +205,20 @@ class TTSProviderBase(ABC):
                         future.result()
                     except Exception as e:
                         logger.bind(tag=TAG).warning(
-                            f"语音生成失败{5 - max_repeat_time + 1}次: {text}，错误: {e}"
+                            f"Tạo giọng nói thất bại lần thứ {5 - max_repeat_time + 1}: {text}, lỗi: {e}"
                         )
-                        # 未执行成功，删除文件
+                        # Tạo thất bại, xóa tệp
                         if os.path.exists(tmp_file):
                             os.remove(tmp_file)
                         max_repeat_time -= 1
 
                 if max_repeat_time > 0:
                     logger.bind(tag=TAG).info(
-                        f"语音生成成功: {text}:{tmp_file}，重试{5 - max_repeat_time}次"
+                        f"Tạo giọng nói thành công: {text}:{tmp_file}, thử lại {5 - max_repeat_time} lần"
                     )
                 else:
                     logger.bind(tag=TAG).error(
-                        f"语音生成失败: {text}，请检查网络或服务是否正常"
+                        f"Tạo giọng nói thất bại: {text}, vui lòng kiểm tra mạng hoặc dịch vụ"
                     )
 
                 return tmp_file
@@ -327,7 +331,7 @@ class TTSProviderBase(ABC):
                 continue
             except Exception as e:
                 logger.bind(tag=TAG).error(
-                    f"处理TTS文本失败: {str(e)}, 类型: {type(e).__name__}, 堆栈: {traceback.format_exc()}"
+                    f"Xử lý văn bản TTS thất bại: {str(e)}, loại: {type(e).__name__}, stack: {traceback.format_exc()}"
                 )
                 continue
 
@@ -348,7 +352,7 @@ class TTSProviderBase(ABC):
                     continue
 
                 if self.conn.client_abort:
-                    logger.bind(tag=TAG).debug("收到打断信号，跳过当前音频数据")
+                    logger.bind(tag=TAG).debug("Nhận được tín hiệu ngắt, bỏ qua dữ liệu âm thanh hiện tại")
                     enqueue_text, enqueue_audio = None, []
                     continue
 
@@ -385,12 +389,12 @@ class TTSProviderBase(ABC):
         pass
 
     async def close(self):
-        """资源清理方法"""
+        """Phương thức dọn dẹp tài nguyên"""
         if hasattr(self, "ws") and self.ws:
             await self.ws.close()
 
     def _get_segment_text(self):
-        # 合并当前全部文本并处理未分割部分
+        # Hợp nhất văn bản hiện tại và xử lý phần chưa phân đoạn
         full_text = "".join(self.tts_text_buff)
         current_text = full_text[self.processed_chars :]  # 从未处理的位置开始
         last_punct_pos = -1

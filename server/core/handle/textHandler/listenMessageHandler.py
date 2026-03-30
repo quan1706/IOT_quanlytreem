@@ -100,8 +100,16 @@ class ListenTextMessageHandler(TextMessageHandler):
                                 conn.logger.bind(tag=TAG).warning(f"Gửi Telegram alert thất bại (không nghẽn): {tg_err}")
 
                             if DASHBOARD_STATE["mode"] == "auto":
-                                # Tự động an ủi bé
-                                await startToChat(conn, "Hệ thống phát hiện tiếng bé khóc. Hãy nói một câu dỗ dành nhắc bé nín khóc thật nhẹ nhàng. Rất ngắn gọn thôi.")
+                                # 1. Tự động ru nôi (Rung nôi và phát nhạc) ngay lập tức
+                                from core.serverToClients import ESP32Commander
+                                await ESP32Commander().execute_command("ru_vong")
+                                
+                                # 2. Tự động an ủi bé qua AI (Bỏ qua đoán ý định để dỗ bé cực nhanh)
+                                soothing_prompt = "Hệ thống phát hiện tiếng bé khóc. Hãy nói một câu dỗ dành nhắc bé nín khóc thật nhẹ nhàng. Rất ngắn gọn thôi."
+                                from core.handle.sendAudioHandle import send_stt_message
+                                await send_stt_message(conn, soothing_prompt)
+                                # Gọi trực tiếp luồng chat của AI để tránh treo lệnh
+                                asyncio.create_task(conn.chat(soothing_prompt))
                             else:
                                 # Chế độ thủ công, không gọi AI, chỉ báo về web và Unblock ESP32
                                 await send_tts_message(conn, "stop", None)

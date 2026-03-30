@@ -791,7 +791,7 @@ class ConnectionHandler:
         # Cập nhật prompt hệ thống vào ngữ cảnh
         self.dialogue.update_system_message(self.prompt)
 
-    def chat(self, query, depth=0):
+    async def chat(self, query, depth=0):
         if query is not None:
             self.logger.bind(tag=TAG).info(f"Mô hình AI nhận được tin nhắn người dùng: {query}")
 
@@ -840,10 +840,7 @@ class ConnectionHandler:
             memory_str = None
             # 仅当query非空（代表用户询问）时查询记忆
             if self.memory is not None and query:
-                future = asyncio.run_coroutine_threadsafe(
-                    self.memory.query_memory(query), self.loop
-                )
-                memory_str = future.result()
+                memory_str = await self.memory.query_memory(query)
 
             if self.intent_type == "function_call" and functions is not None:
                 # 使用支持functions的streaming接口
@@ -873,7 +870,7 @@ class ConnectionHandler:
         self.client_abort = False
         emotion_flag = True
         try:
-            for response in llm_responses:
+            async for response in llm_responses:
                 if self.client_abort:
                     break
                 if self.intent_type == "function_call" and functions is not None:
@@ -896,10 +893,7 @@ class ConnectionHandler:
 
                 # Lấy biểu cảm cảm xúc trong phản hồi của LLM, chỉ lấy một lần ở đầu mỗi lượt đối thoại
                 if emotion_flag and content is not None and content.strip():
-                    asyncio.run_coroutine_threadsafe(
-                        textUtils.get_emotion(self, content),
-                        self.loop,
-                    )
+                    asyncio.create_task(textUtils.get_emotion(self, content))
                     emotion_flag = False
 
                 if content is not None and len(content) > 0:
@@ -980,30 +974,24 @@ class ConnectionHandler:
                     f"Phát hiện {len(tool_calls_list)} lượt gọi công cụ"
                 )
 
-                # 收集所有工具调用的 Future
-                futures_with_data = []
+                # Chạy song song tất cả các lượt gọi công cụ (vd: vừa bật nôi vừa bật nhạc)
+                tasks = []
                 for tool_call_data in tool_calls_list:
                     self.logger.bind(tag=TAG).debug(
                         f"function_name={tool_call_data['name']}, function_id={tool_call_data['id']}, function_arguments={tool_call_data['arguments']}"
                     )
+                    tasks.append(self.func_handler.handle_llm_function_call(self, tool_call_data))
 
-                    future = asyncio.run_coroutine_threadsafe(
-                        self.func_handler.handle_llm_function_call(
-                            self, tool_call_data
-                        ),
-                        self.loop,
-                    )
-                    futures_with_data.append((future, tool_call_data))
-
-                # Đợi hiệp trình kết thúc (thực tế đợi theo cái chậm nhất)
+                # Đợi tất cả các công cụ thực hiện xong
+                results = await asyncio.gather(*tasks)
+                
                 tool_results = []
-                for future, tool_call_data in futures_with_data:
-                    result = future.result()
-                    tool_results.append((result, tool_call_data))
+                for i, result in enumerate(results):
+                    tool_results.append((result, tool_calls_list[i]))
 
                 # Xử lý thống nhất tất cả kết quả gọi công cụ
                 if tool_results:
-                    self._handle_function_result(tool_results, depth=depth)
+                    await self._handle_function_result(tool_results, depth=depth)
 
         # 存储对话内容
         if len(response_message) > 0:
@@ -1027,7 +1015,7 @@ class ConnectionHandler:
 
         return True
 
-    def _handle_function_result(self, tool_results, depth):
+    async def _handle_function_result(self, tool_results, depth):
         need_llm_tools = []
 
         for result, tool_call_data in tool_results:
@@ -1079,7 +1067,7 @@ class ConnectionHandler:
                         )
                     )
 
-            self.chat(None, depth=depth + 1)
+            await self.chat(None, depth=depth + 1)
 
     def _report_worker(self):
         """聊天记录上报工作线程"""

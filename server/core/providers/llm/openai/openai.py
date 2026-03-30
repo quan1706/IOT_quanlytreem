@@ -45,7 +45,7 @@ class LLMProvider(LLMProviderBase):
         model_key_msg = check_model_key("LLM", self.api_key)
         if model_key_msg:
             logger.bind(tag=TAG).error(model_key_msg)
-        self.client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=httpx.Timeout(self.timeout))
+        self.client = openai.AsyncOpenAI(api_key=self.api_key, base_url=self.base_url, timeout=httpx.Timeout(self.timeout))
 
     @staticmethod
     def normalize_dialogue(dialogue):
@@ -55,7 +55,7 @@ class LLMProvider(LLMProviderBase):
                 msg["content"] = ""
         return dialogue
 
-    def response(self, session_id, dialogue, **kwargs):
+    async def response(self, session_id, dialogue, **kwargs):
         dialogue = self.normalize_dialogue(dialogue)
 
         request_params = {
@@ -76,10 +76,10 @@ class LLMProvider(LLMProviderBase):
             if value is not None:
                 request_params[key] = value
 
-        responses = self.client.chat.completions.create(**request_params)
+        responses = await self.client.chat.completions.create(**request_params)
 
         is_active = True
-        for chunk in responses:
+        async for chunk in responses:
             try:
                 delta = chunk.choices[0].delta if getattr(chunk, "choices", None) else None
                 content = getattr(delta, "content", "") if delta else ""
@@ -95,7 +95,7 @@ class LLMProvider(LLMProviderBase):
                 if is_active:
                     yield content
 
-    def response_with_functions(self, session_id, dialogue, functions=None, **kwargs):
+    async def response_with_functions(self, session_id, dialogue, functions=None, **kwargs):
         dialogue = self.normalize_dialogue(dialogue)
 
         request_params = {
@@ -116,9 +116,9 @@ class LLMProvider(LLMProviderBase):
             if value is not None:
                 request_params[key] = value
 
-        stream = self.client.chat.completions.create(**request_params)
+        stream = await self.client.chat.completions.create(**request_params)
 
-        for chunk in stream:
+        async for chunk in stream:
             if getattr(chunk, "choices", None):
                 delta = chunk.choices[0].delta
                 content = getattr(delta, "content", "")

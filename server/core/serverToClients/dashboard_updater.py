@@ -7,6 +7,7 @@ Module quản lý toàn bộ state của Dashboard và cung cấp phương thứ
 import time
 import json
 import os
+import threading
 from config.logger import setup_logging
 
 TAG = "DashboardUpdater"
@@ -56,8 +57,8 @@ class DashboardUpdater:
         - Trả về True nếu thành công, False nếu bị chặn bởi cooldown
         """
         current_time = time.time()
-        # Cooldown: 60 giây giữa các lần báo động khóc để tránh spam (Toàn cục)
-        if not force and (current_time - DASHBOARD_STATE.get("last_cry_time", 0) < 60):
+        # Cooldown: 30 giây giữa các lần báo động khóc để tránh spam (Giảm từ 60s theo lời ba mẹ)
+        if not force and (current_time - DASHBOARD_STATE.get("last_cry_time", 0) < 30):
             return False
 
         DASHBOARD_STATE["last_cry_time"] = current_time
@@ -148,17 +149,21 @@ class DashboardUpdater:
             "query": entry.get("query", "")[:40],
         })
 
-        # 2. Log to persistent file in data/
-        try:
-            log_dir = "data"
-            if not os.path.exists(log_dir):
-                os.makedirs(log_dir)
-            
-            log_file = os.path.join(log_dir, "ai_logs.json")
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(log_json + "\n")
-        except Exception as e:
-            logger.bind(tag=TAG).error(f"Lỗi ghi file ai_logs.json: {e}")
+        # 2. Log to persistent file in data/ (Dùng luồng riêng)
+        def _save_ai_log():
+            try:
+                log_dir = "data"
+                if not os.path.exists(log_dir):
+                    os.makedirs(log_dir)
+                
+                log_file = os.path.join(log_dir, "ai_logs.json")
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(log_json + "\n")
+            except Exception as e:
+                from config.logger import setup_logging
+                setup_logging().bind(tag=TAG).error(f"Lỗi ghi file ai_logs.json: {e}")
+
+        threading.Thread(target=_save_ai_log, daemon=True).start()
 
     # ------------------------------------------------------------------
     # System log – tổng hợp (time | name | action | json tóm gọn)
@@ -177,20 +182,24 @@ class DashboardUpdater:
         if len(DASHBOARD_STATE["system_logs"]) > MAX_HISTORY:
             DASHBOARD_STATE["system_logs"].pop(0)
             
-        # Ghi vào file data/system_logs.json
-        try:
-            import os
-            # Lấy đường dẫn tuyệt đối đến thư mục server/data
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            data_dir = os.path.join(base_dir, "data")
-            os.makedirs(data_dir, exist_ok=True)
-            log_path = os.path.join(data_dir, "system_logs.json")
-            
-            with open(log_path, "w", encoding="utf-8") as f:
-                json.dump(DASHBOARD_STATE["system_logs"], f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            from config.logger import setup_logging
-            setup_logging().bind(tag="DashboardUpdater").error(f"Lỗi ghi file system_logs.json: {e}")
+        # Ghi vào file data/system_logs.json (Dùng luồng riêng để tránh treo Server)
+        def _save_to_disk():
+            try:
+                import os
+                # Lấy đường dẫn tuyệt đối đến thư mục server/data
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                data_dir = os.path.join(base_dir, "data")
+                os.makedirs(data_dir, exist_ok=True)
+                log_path = os.path.join(data_dir, "system_logs.json")
+                
+                with open(log_path, "w", encoding="utf-8") as f:
+                    json.dump(DASHBOARD_STATE["system_logs"], f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                from config.logger import setup_logging
+                setup_logging().bind(tag="DashboardUpdater").error(f"Lỗi ghi file system_logs.json: {e}")
+
+        # Chạy tác vụ ghi file trong luồng daemon để không block main thread
+        threading.Thread(target=_save_to_disk, daemon=True).start()
 
     # ------------------------------------------------------------------
     # Mode
@@ -211,36 +220,39 @@ class DashboardUpdater:
     @staticmethod
     def _record_chart_point(temp, hum):
         """Lưu điểm dữ liệu mới vào data/chart_history.json (rolling window)."""
-        file_path = "data/chart_history.json"
-        try:
-            if os.path.exists(file_path):
-                with open(file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-            else:
-                data = {"labels": [], "cry": [], "temp": [], "hum": []}
+        def _save_chart_to_disk():
+            file_path = "data/chart_history.json"
+            try:
+                import os
+                if os.path.exists(file_path):
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                else:
+                    data = {"labels": [], "cry": [], "temp": [], "hum": []}
 
-            time_str = time.strftime("%H:%M", time.localtime())
-            
-            # Thêm điểm mới
-            data["labels"].append(time_str)
-            data["temp"].append(round(temp, 2))
-            data["hum"].append(round(hum, 1))
-            
-            # Cry value: lấy cường độ khóc cao nhất trong 10p qua (ví dụ)
-            # Ở đây ta lấy logic đơn giản: nếu cry_status là True thì coi như có khóc
-            cry_val = 500 if DASHBOARD_STATE.get("cry_status") else 50
-            data["cry"].append(cry_val)
+                time_str = time.strftime("%H:%M", time.localtime())
+                
+                # Thêm điểm mới
+                data["labels"].append(time_str)
+                data["temp"].append(round(temp, 2))
+                data["hum"].append(round(hum, 1))
+                
+                # Cry value: lấy cường độ khóc cao nhất trong 10p qua (ví dụ)
+                cry_val = 500 if DASHBOARD_STATE.get("cry_status") else 50
+                data["cry"].append(cry_val)
 
-            # Giới hạn 144 điểm (tương đương 24h nếu 10p/điểm)
-            for key in ["labels", "temp", "hum", "cry"]:
-                if len(data[key]) > 144:
-                    data[key].pop(0)
+                # Giới hạn 144 điểm (tương đương 24h nếu 10p/điểm)
+                for key in ["labels", "temp", "hum", "cry"]:
+                    if len(data[key]) > 144:
+                        data[key].pop(0)
 
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger = setup_logging()
-            logger.bind(tag=TAG).error(f"Lỗi ghi chart_history: {e}")
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                from config.logger import setup_logging
+                setup_logging().bind(tag=TAG).error(f"Lỗi ghi chart_history: {e}")
+
+        threading.Thread(target=_save_chart_to_disk, daemon=True).start()
 
     @staticmethod
     def set_mode(mode: str):

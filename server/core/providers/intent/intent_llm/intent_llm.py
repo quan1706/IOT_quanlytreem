@@ -60,7 +60,7 @@ class IntentProvider(IntentProviderBase):
             "Return: {\"function_call\": {\"name\": \"result_for_context\"}}\n\n"
             "User: Chào em, khỏe không?\n"
             "Return: {\"function_call\": {\"name\": \"continue_chat\"}}\n\n"
-            "【CẢNH BÁO】Cấm trả về bất kỳ từ nào ngoài JSON. Phá vỡ cấu trúc này sẽ làm hỏng hệ thống."
+            "【CẢNH BÁO】Cấm trả về bất kỳ từ nào ngoài JSON. Chỉ dùng dấu ngoặc kép (\"), KHÔNG dùng dấu ngoặc đơn (') cho các khóa và giá trị. Phá vỡ cấu trúc này sẽ làm hỏng hệ thống."
         )
         return prompt
 
@@ -151,7 +151,7 @@ class IntentProvider(IntentProviderBase):
         logger.bind(tag=TAG).debug(f"Bắt đầu gọi LLM nhận diện ý định, mô hình: {model_info}")
 
         try:
-            intent = self.llm.response_no_stream(
+            intent = await self.llm.response_no_stream(
                 system_prompt=prompt_music, user_prompt=user_prompt
             )
         except Exception as e:

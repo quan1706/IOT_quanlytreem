@@ -74,7 +74,7 @@ async def startToChat(conn: "ConnectionHandler", text):
             # Thông báo cho người dùng là không nghe rõ thay vì trả lời lạc đề
             error_text = "Dạ, em nghe không rõ, ba mẹ nói lại giúp em nhé!"
             await send_stt_message(conn, error_text)
-            conn.executor.submit(conn.chat, error_text)
+            asyncio.create_task(conn.chat(error_text))
             return
 
     # Lưu thông tin người nói xuống object kết nối
@@ -98,6 +98,9 @@ async def startToChat(conn: "ConnectionHandler", text):
     if conn.client_is_speaking and conn.client_listen_mode != "manual":
         await handleAbortMessage(conn)
 
+    # Phản hồi nhanh 'Dạ' ngay sau khi nhận diện giọng nói
+    await send_stt_message(conn, "Dạ")
+
     # Đầu tiên thực hiện phân tích Intent bằng nội dung thực tế
     intent_handled = await handle_user_intent(conn, actual_text)
 
@@ -107,7 +110,7 @@ async def startToChat(conn: "ConnectionHandler", text):
 
     # Không đúng ý định rẽ nhánh thì cứ tiếp tục gửi quy trình trò chuyện như thường cho LLM
     await send_stt_message(conn, actual_text)
-    conn.executor.submit(conn.chat, actual_text)
+    asyncio.create_task(conn.chat(actual_text))
 
 
 async def no_voice_close_connect(conn: "ConnectionHandler", have_voice):

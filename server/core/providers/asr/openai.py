@@ -1,11 +1,10 @@
 import time
 import os
+import httpx
 from config.logger import setup_logging
 from typing import Optional, Tuple, List
 from core.providers.asr.dto.dto import InterfaceType
 from core.providers.asr.base import ASRProviderBase
-
-import requests
 
 TAG = __name__
 logger = setup_logging()
@@ -50,19 +49,20 @@ class ASRProvider(ASRProviderBase):
             if self.prompt:
                 data["prompt"] = self.prompt  # Gợi ý từ khóa để Whisper nhận diện chính xác hơn
 
-
-            with open(file_path, "rb") as audio_file:  # Dùng with để đảm bảo file được đóng
-                files = {
-                    "file": audio_file
-                }
-
-                start_time = time.time()
-                response = requests.post(
-                    self.api_url,
-                    files=files,
-                    data=data,
-                    headers=headers
-                )
+            start_time = time.time()
+            async with httpx.AsyncClient() as client:
+                with open(file_path, "rb") as audio_file:
+                    files = {
+                        "file": audio_file
+                    }
+                    response = await client.post(
+                        self.api_url,
+                        files=files,
+                        data=data,
+                        headers=headers,
+                        timeout=60.0
+                    )
+                
                 logger.bind(tag=TAG).debug(
                     f"Thời gian nhận diện giọng nói: {time.time() - start_time:.3f}s | Kết quả: {response.text}"
                 )

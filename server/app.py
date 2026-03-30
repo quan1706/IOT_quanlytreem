@@ -77,6 +77,14 @@ async def main():
             auth_key = str(uuid.uuid4().hex)
     
     config["server"]["auth_key"] = auth_key
+    
+    # [FIX] Tự động cập nhật IP thật vào config nếu đang để placeholder
+    websocket_url = config["server"].get("websocket", "")
+    if "你" in websocket_url:
+        local_ip = get_local_ip()
+        ws_port = config["server"].get("websocket_port", 8000)
+        config["server"]["websocket"] = f"ws://{local_ip}:{ws_port}/xiaozhi/v1/"
+        logger.bind(tag=TAG).info(f"🔄 Auto-IP: Đã cập nhật cấu hình websocket thành {config['server']['websocket']}")
 
     # Thêm tác vụ giám sát stdin
     stdin_task = asyncio.create_task(monitor_stdin())
