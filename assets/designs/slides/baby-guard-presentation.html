@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Baby Care Presentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            dominant: '#f5f7fd',
+                            secondary: '#ff4b32',
+                            accent: '#ee3e80',
+                            dark: '#1e293b',
+                            text: '#2d3748'
+                        }
+                    }
+                }
+            }
+        }
+        
+        mermaid.initialize({ startOnLoad: true, theme: 'base',
+            themeVariables: {
+                primaryColor: '#f5f7fd',
+                primaryTextColor: '#1e293b',
+                primaryBorderColor: '#ff4b32',
+                lineColor: '#ee3e80',
+                secondaryColor: '#ffffff',
+                tertiaryColor: '#fff5f5'
+            }
+        });
+    </script>
+    
+    <style>
+        :root {
+            --brand-dominant: #f5f7fd;
+            --brand-secondary: #ff4b32;
+            --brand-accent: #ee3e80;
+            --brand-dark: #1e293b;
+        }
+        
+        body { margin: 0; overflow: hidden; background: var(--brand-dominant); color: #2d3748; }
+        
+        /* Slide Container */
+        #presentation {
+            width: 100vw; height: 100vh;
+            position: relative;
+        }
+        
+        .slide {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            opacity: 0; transition: opacity 0.5s ease-in-out, transform 0.5s ease;
+            pointer-events: none; z-index: 0;
+            display: flex; flex-direction: column;
+            padding: 4rem; box-sizing: border-box;
+            background-color: white; transform: scale(0.98);
+        }
+        
+        .slide.active { opacity: 1; pointer-events: auto; z-index: 10; transform: scale(1); }
+        
+        /* Layout Grids */
+        .layout-split { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; height: 100%; align-items: center; }
+        .layout-hero { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; height: 100%; }
+        .layout-content { display: flex; flex-direction: column; height: 100%; }
+        
+        /* Typography Highlights */
+        .gradient-text {
+            background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-image: linear-gradient(135deg, var(--brand-secondary), var(--brand-accent));
+        }
+        
+        /* UI Elements */
+        .glass-card { background: rgba(255,255,255,0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,75,50,0.1); border-radius: 1.5rem; box-shadow: 0 10px 40px rgba(0,0,0,0.05); }
+        .feature-item { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem; }
+        .icon-box { background: rgba(255,75,50,0.1); color: var(--brand-secondary); width: 3rem; height: 3rem; border-radius: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1.25rem; }
+        
+        /* Navigation Controls */
+        #controls { position: fixed; bottom: 2rem; right: 2rem; z-index: 100; display: flex; gap: 1rem; }
+        .btn-nav { width: 3rem; height: 3rem; border-radius: 50%; background: white; border: 1px solid #e2e8f0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: var(--brand-dark); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); transition: all 0.2s; }
+        .btn-nav:hover { background: var(--brand-dominant); border-color: var(--brand-secondary); color: var(--brand-secondary); }
+        
+        /* Progress Indicator */
+        #progress { position: fixed; top: 0; left: 0; height: 4px; background: linear-gradient(90deg, var(--brand-secondary), var(--brand-accent)); z-index: 100; transition: width 0.3s ease; }
+    </style>
+</head>
+<body>
+
+<div id="progress" style="width: 0%"></div>
+
+<div id="presentation">
+
+    <!-- Slide 1: Title -->
+    <div class="slide active">
+        <div class="layout-hero relative overflow-hidden glass-card h-full w-full rounded-[3rem]">
+            <div class="absolute inset-0 bg-brand-dominant opacity-40 z-0"></div>
+            <div class="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-br from-brand-secondary/10 to-brand-accent/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+            
+            <div class="z-10 flex flex-col items-center">
+                <div class="w-24 h-24 rounded-3xl bg-brand-secondary flex justify-center items-center shadow-2xl shadow-brand-secondary/30 mb-8 border-4 border-white/50">
+                    <i class="fa-solid fa-child-reaching text-white text-5xl"></i>
+                </div>
+                <h1 class="text-7xl font-black text-brand-dark tracking-tight leading-tight mb-4">
+                    Smart Baby <span class="gradient-text">Care</span>
+                </h1>
+                <p class="text-2xl font-medium text-gray-500 uppercase tracking-widest mb-12">IoT Monitoring & AI Guardian System</p>
+                <div class="bg-white/80 px-8 py-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                    <i class="fa-brands fa-python text-2xl text-blue-500"></i>
+                    <i class="fa-solid fa-microchip text-2xl text-gray-700"></i>
+                    <i class="fa-solid fa-robot text-2xl text-brand-accent"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 2: The Problem -->
+    <div class="slide">
+        <div class="layout-split">
+            <div>
+                <span class="text-brand-secondary font-bold tracking-widest uppercase text-sm mb-4 block"><i class="fa-solid fa-triangle-exclamation mr-2"></i> The Challenge</span>
+                <h2 class="text-5xl font-black text-brand-dark mb-8 leading-tight">Why Smart Monitoring <span class="gradient-text">Matters</span></h2>
+                
+                <div class="feature-item">
+                    <div class="icon-box"><i class="fa-solid fa-bed-pulse"></i></div>
+                    <div>
+                        <h3 class="text-xl font-bold text-brand-dark mb-2">SIDS Risk Factors</h3>
+                        <p class="text-gray-600">The <strong>prone (face-down) sleep position</strong> significantly increases the risk of Sudden Infant Death Syndrome. Constant manual monitoring is impossible for parents.</p>
+                    </div>
+                </div>
+                
+                <div class="feature-item">
+                    <div class="icon-box"><i class="fa-solid fa-ear-listen"></i></div>
+                    <div>
+                        <h3 class="text-xl font-bold text-brand-dark mb-2">Delayed Response</h3>
+                        <p class="text-gray-600">Traditional baby monitors simply transmit audio. They don't analyze context, differentiate between sounds, or offer immediate mitigation strategies.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="glass-card p-10 bg-white">
+                <img src="https://images.unsplash.com/photo-1544126592-807ade215a0b?q=80&w=2670&auto=format&fit=crop" class="w-full h-64 object-cover rounded-2xl mb-8" alt="Baby sleeping" />
+                <div class="bg-brand-dominant p-6 rounded-2xl border-l-4 border-brand-secondary">
+                    <h4 class="font-bold text-brand-dark mb-2">Our Solution</h4>
+                    <p class="text-gray-600">An intelligent IoT framework utilizing edge computing and cloud AI to proactively detect distress (crying), analyze dangerous postures, and execute automated physical responses.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 3: Hardware Architecture -->
+    <div class="slide">
+        <div class="layout-content">
+            <span class="text-brand-secondary font-bold tracking-widest uppercase text-sm mb-2 block">IoT Edge Layer</span>
+            <h2 class="text-4xl font-black text-brand-dark mb-10">Hardware Schematic</h2>
+            
+            <div class="grid grid-cols-2 gap-8 h-full">
+                <!-- Board 1 -->
+                <div class="glass-card p-8 bg-white border-t-8 border-t-brand-secondary hover:-translate-y-2 transition-transform duration-300">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-2xl font-bold text-brand-dark">Control Node</h3>
+                        <span class="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold uppercase">ESP32 DevKit V1</span>
+                    </div>
+                    <ul class="space-y-4 text-gray-600">
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-microphone text-brand-accent w-6"></i> <strong>INMP441 (I2S Mic):</strong> Digital audio capture</li>
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-volume-high text-brand-accent w-6"></i> <strong>MAX98357A (DAC):</strong> Streaming TTS playback</li>
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-temperature-half text-brand-accent w-6"></i> <strong>DHT11:</strong> Room environment sensing</li>
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-fan text-brand-accent w-6"></i> <strong>Relay:</strong> Fan control</li>
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-bed text-brand-accent w-6"></i> <strong>SG90 Servo:</strong> Cradle swing mechanism</li>
+                    </ul>
+                    <div class="mt-6 p-4 bg-gray-50 rounded-xl text-sm font-mono text-gray-500 border border-gray-200">
+                        protocol: WebSocket (Port 8000)<br>power: 5V DC
+                    </div>
+                </div>
+
+                <!-- Board 2 -->
+                <div class="glass-card p-8 bg-white border-t-8 border-t-brand-accent hover:-translate-y-2 transition-transform duration-300">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-2xl font-bold text-brand-dark">Vision Node</h3>
+                        <span class="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold uppercase">ESP32-CAM</span>
+                    </div>
+                    <ul class="space-y-4 text-gray-600">
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-camera text-brand-secondary w-6"></i> <strong>OV2640 Sensor:</strong> 2MP Camera module</li>
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-video text-brand-secondary w-6"></i> <strong>Live Stream:</strong> Continuous MJPEG relay</li>
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-expand text-brand-secondary w-6"></i> <strong>HQ Capture:</strong> High-res JPEG burst mode</li>
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-memory text-brand-secondary w-6"></i> <strong>Memory:</strong> 4MB PSRAM for frame buffers</li>
+                    </ul>
+                    <div class="mt-6 p-4 bg-gray-50 rounded-xl text-sm font-mono text-gray-500 border border-gray-200">
+                        protocol: HTTP POST/GET (Port 8003)<br>architecture: Dual-board separation
+                    </div>
+                    
+                    <div class="mt-4 text-xs text-brand-secondary font-bold"><i class="fa-solid fa-lightbulb"></i> Why two boards? Audio requires 2 I2S ports, while Vision requires extensive GPIO footprint. Separation ensures zero processing bottlenecks.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 4: System Architecture -->
+    <div class="slide">
+        <div class="layout-content">
+            <span class="text-brand-secondary font-bold tracking-widest uppercase text-sm mb-2 block">Software Stack</span>
+            <h2 class="text-4xl font-black text-brand-dark mb-8">System Architecture</h2>
+            
+            <div class="glass-card w-full h-full p-8 flex justify-center bg-white/50 items-center overflow-hidden">
+                <div class="mermaid text-center">
+                    graph LR
+                        subgraph Hardware
+                            E1["ESP32 DevKit<br/>(Audio & Control)"]
+                            E2["ESP32-CAM<br/>(Vision)"]
+                        end
+                        
+                        subgraph Server["Python Server (aiohttp)"]
+                            WS["WebSocket Manager<br/>:8000"]
+                            HTTP["HTTP REST API<br/>:8003"]
+                            AI["AI Processor<br/>(Gemini, Groq)"]
+                            STATE["Dashboard State<br/>(Singleton)"]
+                        end
+                        
+                        subgraph Clients
+                            TG["Telegram Bot<br/>(Long Polling)"]
+                            DASH["Web Dashboard<br/>(HTML/JS)"]
+                        end
+                        
+                        E1 <-->|WebSocket| WS
+                        E2 -->|HTTP MJPEG/JPEG| HTTP
+                        WS --> AI
+                        HTTP --> AI
+                        AI --> STATE
+                        STATE --> TG
+                        STATE --> DASH
+                        TG -->|Action Commands| WS
+                        DASH -->|API Commands| WS
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 5: AI Audio Pipeline -->
+    <div class="slide">
+        <div class="layout-content">
+            <span class="text-brand-secondary font-bold tracking-widest uppercase text-sm mb-2 block">Core Pipeline 1</span>
+            <h2 class="text-4xl font-black text-brand-dark mb-8">AI Cry Detection & Analysis</h2>
+            
+            <div class="grid grid-cols-12 gap-6 h-full">
+                <!-- Steps -->
+                <div class="col-span-4 flex flex-col gap-4">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-brand-dark">
+                        <span class="text-xs font-bold text-gray-400 uppercase">1. Edge Trigger</span>
+                        <h4 class="font-bold text-brand-dark">RMS Threshold</h4>
+                        <p class="text-sm text-gray-500">ESP32 measures Root Mean Square every 500ms. If RMS > threshold, it captures 5s of PCM audio.</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500">
+                        <span class="text-xs font-bold text-gray-400 uppercase">2. VAD & ASR</span>
+                        <h4 class="font-bold text-brand-dark">Silero & Groq Whisper</h4>
+                        <p class="text-sm text-gray-500">Silero filters non-voice. Groq's high-speed Whisper model transcribes intent.</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-brand-secondary">
+                        <span class="text-xs font-bold text-gray-400 uppercase">3. Intent & Alert</span>
+                        <h4 class="font-bold text-brand-dark">Event Dispatch</h4>
+                        <p class="text-sm text-gray-500">Server validates cry, triggers ESP32-CAM snapshot, and fires Telegram interactive alert with fallback 60s cooldown.</p>
+                    </div>
+                </div>
+                
+                <!-- Diagram -->
+                <div class="col-span-8 glass-card bg-white p-6 flex flex-col justify-center items-center">
+                    <div class="mermaid w-full">
+                        sequenceDiagram
+                            autonumber
+                            participant ESP as ESP32 (Mic)
+                            participant SRV as Server
+                            participant AI as AI (Groq/Whisper)
+                            participant TG as Telegram
+                            participant CAM as ESP32-CAM
+
+                            ESP->>ESP: RMS > Threshold
+                            ESP->>SRV: Stream 5s PCM audio (WebSocket)
+                            
+                            SRV->>AI: Silero VAD / Groq ASR
+                            AI-->>SRV: Transcribed Audio
+                            
+                            opt System validates "Cry" Intent
+                                SRV->>CAM: Command: Capture HQ
+                                CAM-->>SRV: POST /api/cry (JPEG)
+                                SRV->>TG: Push Photo + Action Buttons<br/>(🎵 Play | 🔄 Swing | ⏹ Stop)
+                            end
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 6: Pose Detection Pipeline -->
+    <div class="slide">
+        <div class="layout-content">
+            <span class="text-brand-accent font-bold tracking-widest uppercase text-sm mb-2 block">Core Pipeline 2</span>
+            <h2 class="text-4xl font-black text-brand-dark mb-8">Vision Check: Pose Detection</h2>
+            
+            <div class="grid grid-cols-12 gap-6 h-full">
+                <!-- Diagram -->
+                <div class="col-span-8 glass-card bg-white p-6 flex flex-col justify-center items-center">
+                    <div class="mermaid w-full bg-white">
+                        sequenceDiagram
+                            autonumber
+                            participant SRV as Server
+                            participant CAM as ESP32-CAM
+                            participant GEM as Gemini Vision
+                            participant TG as Telegram
+
+                            Note over SRV: Periodic (10m) or Telegram /check
+                            
+                            SRV->>SRV: drop_all_streams() (Free camera)
+                            SRV->>CAM: WebSocket: "capture_pose"
+                            CAM-->>SRV: POST /api/vision/hq_capture
+                            
+                            SRV->>GEM: Send Base64 Image + Prompt
+                            GEM-->>SRV: Response: "PRONE" or "SUPINE"
+                            
+                            alt PRONE Detected (Dangerous!)
+                                SRV->>TG: 🚨 ALERT: Baby Face Down!
+                            else SUPINE (Safe)
+                                SRV->>SRV: Log Status internally
+                            end
+                    </div>
+                </div>
+
+                <!-- Concept -->
+                <div class="col-span-4 flex flex-col gap-6">
+                    <div class="bg-gradient-to-br from-brand-dominant to-white p-6 rounded-3xl border border-gray-200">
+                        <div class="text-brand-secondary text-3xl mb-4"><i class="fa-solid fa-eye"></i></div>
+                        <h4 class="font-bold text-brand-dark text-xl mb-2">Gemini Vision Integration</h4>
+                        <p class="text-sm text-gray-600 mb-4">Leveraging Google's advanced visual LLMs to determine dangerous sleep positions inherently linked to SIDS risk.</p>
+                        <div class="flex gap-2">
+                            <span class="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-lg border border-red-200">PRONE (Face-down)</span>
+                            <span class="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200">SUPINE (Safe)</span>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm border-t-4 border-t-amber-400">
+                        <h4 class="font-bold text-gray-800 mb-2"><i class="fa-solid fa-bolt text-amber-500 mr-2"></i> Stream Pre-emption</h4>
+                        <p class="text-xs text-gray-500">ESP32-CAM has limited memory footprint. The server explicitly executes `drop_all_streams()` to halt MJPEG feeds, ensuring maximum RAM availability for the high-res HQ snapshot needed by Gemini AI.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 7: Technical Optimizations -->
+    <div class="slide">
+        <div class="layout-hero relative w-full h-full">
+            <span class="text-brand-secondary font-bold tracking-widest uppercase text-sm mb-4 block">System Highlights</span>
+            <h2 class="text-5xl font-black text-brand-dark mb-12">Performance Optimizations</h2>
+            
+            <div class="grid grid-cols-3 gap-6 w-full px-12">
+                <div class="glass-card p-6 bg-white text-left hover:-translate-y-1 transition duration-200">
+                    <div class="w-12 h-12 rounded-xl bg-brand-dominant flex items-center justify-center text-brand-secondary text-xl mb-4"><i class="fa-solid fa-wifi"></i></div>
+                    <h3 class="font-bold text-lg mb-2">Persistent WebSockets</h3>
+                    <p class="text-sm text-gray-600">Replaced traditional HTTP polling with lightweight WebSockets. Minimizes ESP32 battery consumption and provides structural sub-100ms bidirectional latency.</p>
+                </div>
+                
+                <div class="glass-card p-6 bg-white text-left hover:-translate-y-1 transition duration-200">
+                    <div class="w-12 h-12 rounded-xl bg-brand-dominant flex items-center justify-center text-brand-accent text-xl mb-4"><i class="fa-solid fa-film"></i></div>
+                    <h3 class="font-bold text-lg mb-2">Native MJPEG Relay</h3>
+                    <p class="text-sm text-gray-600">Server relays raw frame bytes using `multipart/x-mixed-replace`. This bypasses complex RTSP encoding requirements on the low-power ESP32.</p>
+                </div>
+                
+                <div class="glass-card p-6 bg-white text-left hover:-translate-y-1 transition duration-200">
+                    <div class="w-12 h-12 rounded-xl bg-brand-dominant flex items-center justify-center text-blue-500 text-xl mb-4"><i class="fa-solid fa-language"></i></div>
+                    <h3 class="font-bold text-lg mb-2">Vietnamese NLP</h3>
+                    <p class="text-sm text-gray-600">Dual conversational layer handling robust natural text intent parsing mapping vague parent requests to hard hardware commands.</p>
+                </div>
+                
+            </div>
+            
+            <div class="mt-8 bg-brand-dark text-white px-8 py-4 rounded-full flex gap-8 shadow-2xl">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-clock-rotate-left text-brand-secondary"></i> 60s Cry Alert Cooldown</div>
+                <div class="flex items-center gap-3"><i class="fa-solid fa-chart-line text-brand-accent"></i> 144-point Rolling State Data</div>
+                <div class="flex items-center gap-3"><i class="fa-solid fa-microchip text-blue-400"></i> Edge Streaming TTS</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Slide 8: Summary/End -->
+    <div class="slide">
+        <div class="layout-hero">
+            <div class="w-20 h-20 rounded-full bg-emerald-100 text-emerald-500 flex items-center justify-center text-4xl mb-6"><i class="fa-solid fa-check"></i></div>
+            <h2 class="text-5xl font-black text-brand-dark mb-6">Conclusion & Demo</h2>
+            <p class="text-xl text-gray-600 max-w-2xl mb-12">The Smart Baby Care system bridges critical detection gaps by fusing physical edge sensors with cloud cognitive AI layer.</p>
+            
+            <div class="grid grid-cols-2 gap-4 max-w-3xl w-full text-left">
+                <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col gap-2">
+                    <h4 class="font-bold text-gray-800 border-b border-gray-100 pb-2">Future Scalability</h4>
+                    <ul class="text-sm text-gray-600 space-y-1 mt-1 marker:text-brand-secondary list-disc pl-4">
+                        <li>Migrate to MQTT Broker</li>
+                        <li>SQLite/PostgreSQL database</li>
+                        <li>Edge TinyML Deployment</li>
+                    </ul>
+                </div>
+                <div class="bg-brand-dominant p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col gap-2 relative overflow-hidden">
+                    <div class="absolute right-[-20px] bottom-[-20px] text-8xl text-brand-secondary opacity-5"><i class="fa-brands fa-telegram"></i></div>
+                    <h4 class="font-bold text-brand-dark border-b border-gray-300 pb-2 relative z-10">Demo Time!</h4>
+                    <p class="text-sm text-gray-600 relative z-10 mt-1">Booting Python Application... Testing ESP connections... Telegram interaction map.</p>
+                </div>
+            </div>
+            
+            <h1 class="text-5xl font-black text-brand-dark tracking-tight mt-16 mt-auto mb-10">
+                Thank <span class="gradient-text">You</span>.
+            </h1>
+        </div>
+    </div>
+
+</div>
+
+<!-- Navigation Controls -->
+<div id="controls">
+    <button class="btn-nav" id="btn-prev"><i class="fa-solid fa-chevron-left"></i></button>
+    <button class="btn-nav" id="btn-next"><i class="fa-solid fa-chevron-right"></i></button>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const slides = document.querySelectorAll('.slide');
+        const progress = document.getElementById('progress');
+        let currentSlide = 0;
+
+        function updateSlide() {
+            slides.forEach((s, i) => {
+                s.classList.remove('active');
+                if(i === currentSlide) s.classList.add('active');
+            });
+            progress.style.width = ((currentSlide + 1) / slides.length) * 100 + '%';
+        }
+
+        document.getElementById('btn-prev').addEventListener('click', () => {
+            if (currentSlide > 0) { currentSlide--; updateSlide(); }
+        });
+
+        document.getElementById('btn-next').addEventListener('click', () => {
+            if (currentSlide < slides.length - 1) { currentSlide++; updateSlide(); }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Space') {
+                if (currentSlide < slides.length - 1) { currentSlide++; updateSlide(); }
+            } else if (e.key === 'ArrowLeft') {
+                if (currentSlide > 0) { currentSlide--; updateSlide(); }
+            }
+        });
+        
+        updateSlide();
+    });
+</script>
+
+</body>
+</html>
