@@ -30,6 +30,12 @@ Hệ thống sử dụng cảm biến và mạng nơ-ron để nhận diện ch�
 ## 📸 2. Hình ảnh Sản phẩm (Product Showcase)
 
 <div align="center">
+  <img src="docs/assets/web_tracking.png" alt="Giao diện Web Tracking Dashboard" width="90%" style="border-radius: 8px; margin-bottom: 15px;"/>
+  <br/>
+  <em>Giao diện Web Dashboard giám sát và điều khiển thời gian thực</em>
+</div>
+<br/>
+<div align="center">
   <img src="docs/assets/baby_crying.png" alt="Cảnh báo tiếng khóc" width="45%" style="border-radius: 8px;"/> 
   <img src="docs/assets/baby_nam_up.png" alt="Cảnh báo tư thế nằm sấp" width="45%" style="border-radius: 8px;"/>
   <br/>
