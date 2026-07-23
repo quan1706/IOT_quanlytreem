@@ -1,96 +1,131 @@
-# 👶 Baby Cry Detector & Smart Soother (Server & Chatbot)
-
-Dự án này là phần Backend (Spring Boot Server) và Bot (Telegram Chatbot) cho hệ thống IoT phát hiện trẻ khóc và điều hành các thiết bị hỗ trợ tự động (phát nhạc ru, bật chế độ ru trang/võng). Mạch thiết bị đầu cuối (ESP32-CAM và cảm biến/AI) sẽ đóng vai trò trigger sự kiện báo động, gửi dữ liệu cho hệ thống Backend này xử lý.
-
-## 🗂️ Kiến trúc & Luồng thực thi (Giai đoạn 2)
-
-Hệ thống tập trung vào việc nhận tín hiệu báo động từ thiết bị phần cứng, cấp báo cho người dùng qua Telegram và phản hồi lệnh điều khiển lại cho thiết bị vật lý dựa trên quyết định của người dùng.
-
-### Sơ đồ Luồng hoạt động:
-
-1. **[ESP32] -> [Server]**: Khi AI ESP32 xác nhận tiếng khóc diễn ra trong 6 giây:
-   - ESP32 gọi HTTP GET đến ESP32-CAM để nhận ảnh JPEG.
-   - ESP32 gọi HTTP POST đến Server Spring Boot tại endpoint `/cry` chứa hình ảnh chụp (multipart/form-data).
-2. **[Server] -> [Telegram Bot]**: 
-   - Server nhận ảnh và lập tức qua Telegram API gửi tin nhắn tới Telegram người dùng (chat_id đã cấu hình).
-   - Nội dung bao gồm Ảnh + Cảnh báo: *"⚠️ Trẻ đang khóc! Chọn hành động:"*
-   - Kèm theo 3 phím bấm (Inline Keyboard):
-     - 🎵 Phát nhạc
-     - 🔄 Ru võng
-     - ⏹ Dừng
-3. **[Người dùng] -> [Telegram Bot] -> [Server]**: Người dùng chọn một hành động bằng cách nhấn phím trên ứng dụng Telegram. Telegram gửi Callback Query (Webhook / Long Polling) về Server.
-4. **[Server] -> [ESP32]**: 
-   - Server phân tích Callback Query, ánh xạ thành lệnh.
-   - Server thao tác gọi HTTP POST `/command` về lại địa chỉ IP nhận lệnh của ESP32 với body dạng JSON tương ứng với lệnh vừa nhận.
-5. **[ESP32] thực thi**:
-   - Nhận "phat_nhac" → Kích hoạt loa phát nhạc ru.
-   - Nhận "ru_vong" → Kích hoạt servo quay/chế độ rung.
-   - Nhận "dung" → Cắt loa + Tắt servo.
+<div align="center">
+  <img src="docs/assets/logo.png" alt="Logo" width="150"/> <!-- Placeholder cho Logo -->
+  <h1>👶 Baby Cry Detector & Smart Soother</h1>
+  <p><strong>Hệ thống Giám sát & Chăm sóc Trẻ Sơ sinh Thông minh ứng dụng AI & IoT</strong></p>
+  
+  [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org)
+  [![ESP32](https://img.shields.io/badge/Hardware-ESP32-red.svg)](https://www.espressif.com/)
+  [![AI](https://img.shields.io/badge/AI-YAMNet%20%7C%20Gemini%20%7C%20Llama-green.svg)](https://groq.com/)
+  [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+  
+  <br/>
+  🔗 <strong><a href="https://canva.link/sc450phss4c65kh">Link Slide Giới Thiệu (Canva)</a></strong>
+</div>
 
 ---
 
-## 💻 Chi tiết các thành phần
+## 📖 1. Giới thiệu dự án (Project Overview)
+**Baby Cry Detector & Smart Soother** là một giải pháp Life-critical IoT kết hợp giữa Điện toán Biên (Edge AI) và Trí tuệ Nhân tạo Đám mây (Cloud AI) nhằm hỗ trợ các bậc phụ huynh giám sát và chăm sóc trẻ sơ sinh một cách toàn diện.
 
-### 1. Java Server (Spring Boot)
-Đóng vai trò trung tâm điều phối (Backend Hub), thực hiện các tác vụ chính:
-- **API Nhận Dữ Liệu (`POST /api/cry`)**: Tiếp nhận yêu cầu multipart file từ ESP32 khi có cảnh báo. Cầm lưu ảnh trên memory hoặc pass qua byte array format để forward thẳng lên Telegram.
-- **Tích hợp Telegram API**: Sử dụng thư viện `TelegramBots` (hoặc HTTP REST Call trực tiếp đến `api.telegram.org`) để gọi phương thức `sendPhoto` với `reply_markup` chứa các nút `InlineKeyboardButton`.
-- **Xử lý Callback (Telegram)**: Lắng nghe và xử lý sự kiện Callback Update từ Telegram khi người dùng nhấn nút, từ đó biết được hành động nào được chọn (vd: `action_play_music`).
-- **REST Client điều khiển thiết bị**: Sử dụng `RestTemplate` hoặc `WebClient` thực hiện POST request để đẩy lệnh trực tiếp đến Node ESP32 có mở lắng nghe HTTP tại mạng nội bộ.
+**Vấn đề giải quyết (Pain Points):**
+- Phụ huynh (đặc biệt là người mới có con) thường bị kiệt sức do không thể túc trực 24/7 bên nôi của trẻ.
+- Các camera truyền thống chỉ phát hiện cường độ âm thanh (db), không phân biệt được tiếng khóc thật và tiếng ồn môi trường, gây ra vô số báo động giả (False Alarms).
+- Camera thông thường không có khả năng phát hiện các tình huống nguy hiểm thầm lặng (như ngạt thở do trẻ bị lật nằm sấp).
 
-### 2. Telegram Bot
-Đóng vai trò là Giao diện (UI/UX) chính để giao tiếp với phụ huynh/người giám sát.
-- Cần tạo 1 con bot thông qua [@BotFather](https://t.me/BotFather) để lấy **Bot Token**.
-- Tương tác với người dùng ở trạng thái thời gian thực theo cấu trúc: Hình ảnh gửi tức thời kèm Inline Menu Buttons trực quan.
-
-### 3. ESP32 (Phần Lắng nghe lệnh)
-- Server Spring Boot sẽ đóng vai trò là Client, gửi tín hiệu sang API được ESP32 mở sẵn.
-- **Endpoint ESP32 lắng nghe**: `POST /command`
-- **Payload**: `{"cmd": "<tên-lệnh>"}` (Ví dụ: `{"cmd": "phat_nhac"}`)
+**Giải pháp:**
+Hệ thống sử dụng cảm biến và mạng nơ-ron để nhận diện chính xác "đặc trưng tiếng khóc", kết hợp Computer Vision để xác minh tư thế ngủ (Pose Detection). Tự động cung cấp cơ chế dỗ dành (Auto-Soother) như phát nhạc, ru võng, đồng thời gửi cảnh báo khẩn cấp qua Telegram với độ trễ cực thấp.
 
 ---
 
-## 📡 API Contract (Đặc tả Giao thức giao tiếp)
+## 📸 2. Hình ảnh Sản phẩm (Product Showcase)
 
-### 1. ESP32 -> Server (Báo khóc & Gửi ảnh)
-- **Method**: `POST`
-- **Path**: `/api/cry` (Tại Server)
-- **MIME Type**: `multipart/form-data`
-- **Body**: 
-  - `image`: Dữ liệu ảnh dạng byte/file `.jpeg`
-
-### 2. Server -> ESP32 (Gửi lệnh điều khiển)
-- **Method**: `POST`
-- **Path**: `http://<IP-CỦA-ESP32>/command` (API của thiết bị ESP)
-- **Content-Type**: `application/json`
-- **Body Example**:
-  ```json
-  {
-    "cmd": "phat_nhac" 
-  }
-  ```
-- **Các Command map có thể có**: `"phat_nhac"`, `"ru_vong"`, `"dung"`.
-
-### 3. Telegram Callback Payload mapping
-Server tiếp nhận Callback Data (Nội dung ẩn dưới mỗi nút bấm Telegram) và map ánh xạ sang `cmd`:
-- Callback Data `ACTION_PLAY_MUSIC` -> ESP command `{"cmd": "phat_nhac"}`
-- Callback Data `ACTION_SWING` -> ESP command `{"cmd": "ru_vong"}`
-- Callback Data `ACTION_STOP` -> ESP command `{"cmd": "dung"}`
+<div align="center">
+  <!-- Placeholders: Bạn có thể đưa hình ảnh giao diện thực tế vào folder docs/assets/ -->
+  <img src="docs/assets/dashboard_preview.png" alt="Web Dashboard Preview" width="45%" style="border-radius: 8px;"/> 
+  <img src="docs/assets/telegram_bot_preview.png" alt="Telegram Bot Interface" width="45%" style="border-radius: 8px;"/>
+  <br/>
+  <em>Giao diện Web Dashboard (trái) và Thông báo khẩn cấp qua Telegram Bot (phải)</em>
+</div>
 
 ---
 
-## 🚀 Các bước Kế hoạch Triển khai Backend (Next Steps)
+## ⚙️ 3. Mô tả chi tiết & Tính năng nổi bật (Core Features)
 
-1. **Khởi tạo Dư án Spring Boot**: 
-   - Quét từ Spring Initializr (`spring-boot-starter-web`, `lombok`).
-   - Cài đặt dependency để kết nối Telegram: `telegrambots-spring-boot-starter` (của rubenlagus).
-   - Cấu hình file `application.yml` hoặc `.properties` bổ sung `bot.token` và `bot.username`.
-2. **Xây dựng Telegram Bot Service Layer**:
-   - Kế thừa lớp `TelegramLongPollingBot` (Nếu dùng Long Polling) hoặc viết RestController riêng (Nếu dùng Webhook).
-   - Đón hàm `onUpdateReceived` để bắt CallbackQuery khi nút được nhấn.
-3. **Xây dựng API Controller Nhận thông tin (`/api/cry`)**:
-   - Viết controller dùng annotation `@PostMapping("/api/cry")` đón `@RequestParam("image") MultipartFile image`.
-   - Inject Bot Service vào để gửi ảnh sang Telegram ngay khi nhận được request hợp lệ.
-4. **Tích hợp HTTP Client gửi lệnh tới ESP32**:
-   - Tại vị trí xử lý `onUpdateReceived` sinh ra hàm gọi `RestTemplate.postForObject()` báo hiệu lệnh về địa chỉ IP của module ESP32.
-   - *Lưu ý kiến trúc: Để việc gọi HTTP POST tới IP ESP32 trong mạng LAN trơn tru từ 1 server có thể được host trên cloud Internet, IP ESP32 này thường sẽ phải NAT Port hoặc cấu hình IP tĩnh mạng nội bộ. Hoặc hệ thống nên cân nhắc bổ sung giao thức MQTT Pub/Sub làm Middleware nếu không muốn ESP32 mở cổng HTTP trực tiếp.*
+- **Nhận diện Âm thanh Đa nhãn (Audio Classification)**: Tích hợp mô hình **Google YAMNet** (phân loại 521 nhãn sự kiện âm thanh) kết hợp **Silero VAD** giúp bóc tách và phát hiện chính xác "tiếng khóc" giữa các môi trường tạp âm phức tạp (còi xe, tiếng chó sủa).
+- **Giám sát An toàn Sinh mạng (Pose Detection)**: Ứng dụng Computer Vision phân tích hình ảnh nôi theo chu kỳ. Kích hoạt báo động mức độ ĐỎ (Critical) nếu phát hiện trẻ bị lật úp mặt (Prone), giúp phòng tránh hội chứng SIDS.
+- **Phản hồi Dỗ dành Tự động (Smart Auto-Soother)**: Tự động ra lệnh cho phần cứng kích hoạt cơ cấu ru võng và loa phát nhạc ru. Đi kèm cơ chế *Fail-safe*: Tự động ngắt nhạc sau 5 phút nếu trẻ không nín và nâng mức độ cảnh báo để phụ huynh trực tiếp can thiệp.
+- **Trợ lý Ảo Nhi khoa (Conversational AI)**: Tích hợp LLM làm bộ não xử lý ngôn ngữ tự nhiên. Phụ huynh có thể hỏi đáp các kiến thức chăm sóc trẻ thông qua Text hoặc Voice (tích hợp Voice Controller & Wake-word).
+- **Cảnh báo Đa kênh (Multi-Channel Alerts)**: Telegram Bot cung cấp cảnh báo đẩy (Push Notifications) kèm hình ảnh hiện trường và các nút bấm điều khiển tức thời (Inline Buttons). Hệ thống đồng thời cung cấp Local Web Dashboard cập nhật trạng thái thời gian thực qua WebSocket.
+
+---
+
+## 🏗 4. Kiến trúc Hệ thống & Nền tảng Công nghệ (Architecture)
+
+Dự án được xây dựng dựa trên kiến trúc **Event-Driven Multi-Agent**:
+
+- **Backend Server (Python / aiohttp)**: Máy chủ trung tâm hiệu năng cao, xử lý luồng WebSockets, API `/api/cry`, đồng bộ hóa State và gọi các Plugin/Agent mở rộng.
+- **Hardware (ESP32)**:
+  - **ESP32 Core**: Vi điều khiển chính xử lý logic cảm biến, động cơ (Servo) và loa.
+  - **ESP32-CAM**: Chịu trách nhiệm chụp ảnh và truyền luồng video (Stream/MJPEG).
+- **AI Models & Nền tảng Dịch vụ**:
+  - **Google YAMNet / FunASR**: Xử lý và phân loại tín hiệu âm thanh kỹ thuật số.
+  - **Groq API (Llama 3)**: LLM xử lý ngôn ngữ tự nhiên với tốc độ (Low Latency) cực cao.
+  - **Google Gemini API**: Phân tích thị giác (Computer Vision / Pose Detection).
+
+---
+
+## 🚀 5. Hướng dẫn Cài đặt & Triển khai (Installation Guide)
+
+### 5.1 Danh sách Phần cứng cần chuẩn bị (Hardware Requirements)
+Để triển khai thực tế toàn bộ hệ thống, bạn cần chuẩn bị các linh kiện sau:
+- **Module Camera ESP32-CAM**: Sử dụng để chụp ảnh, stream video phục vụ tính năng Pose Detection và xác minh hình ảnh qua Telegram.
+- **Board vi điều khiển ESP32 Core**: Làm bộ điều khiển trung tâm tại Edge, thu thập âm thanh, điều khiển động cơ và đọc cảm biến.
+- **Microphone (Ví dụ: INMP441)**: Thu âm thanh chất lượng cao để gửi luồng âm thanh phân tích tiếng khóc (VAD / YAMNet).
+- **Động cơ Servo**: Lắp đặt vào cơ cấu nôi/võng để thực hiện tính năng "Ru võng tự động".
+- **Module Loa / Còi Buzzer**: Dùng để phát nhạc ru dỗ dành trẻ và phát âm thanh báo động cục bộ (Offline Fallback).
+- **Cảm biến Môi trường (DHT11 / DHT22)**: (Tùy chọn) Để thu thập dữ liệu nhiệt độ, độ ẩm phòng hiển thị lên Web Dashboard.
+
+### 5.2 Sơ đồ Kết nối Phần cứng (Wiring Diagram)
+<div align="center">
+  <!-- Placeholder: Đưa ảnh sơ đồ đấu dây thực tế (Fritzing/Proteus) vào docs/assets/wiring_diagram.png -->
+  <img src="docs/assets/wiring_diagram.png" alt="Sơ đồ kết nối phần cứng" width="80%" style="border-radius: 8px;"/>
+  <br/>
+  <em>Sơ đồ chân đấu nối (Wiring Diagram) giữa ESP32, Module Camera, Microphone, Servo và Cảm biến</em>
+</div>
+
+### 5.3 Yêu cầu Phần mềm (Software Prerequisites)
+- **Software**: Python 3.10+, FFmpeg (để xử lý luồng âm thanh), Arduino IDE (để nạp firmware cho ESP).
+
+### 5.4 Thiết lập Phần cứng (Hardware Setup)
+1. Mở thư mục `hardware/esp32`.
+2. Dùng **Arduino IDE** để mở 2 sketch: `baby_care_esp32/baby_care_esp32.ino` (mạch điều khiển) và `baby_care_stream_cam/baby_care_stream_cam.ino` (mạch camera).
+3. Đổi các tham số cấu hình mạng lưới: `WIFI_SSID`, `WIFI_PASSWORD` và `SERVER_IP` (trỏ về IP tĩnh của máy chủ Backend).
+4. Nạp code (Compile & Upload) xuống các mạch ESP32 tương ứng.
+
+### 5.5 Thiết lập Backend Server (Software Setup)
+1. Clone repository và đi tới thư mục `server`:
+   ```bash
+   git clone https://github.com/username/IOT_quanlytreem.git
+   cd IOT_quanlytreem/server
+   ```
+2. Cài đặt các thư viện Python:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Cấu hình biến môi trường (Secrets Management):
+   > ⚠️ **CẢNH BÁO BẢO MẬT (Security Risk)**: Đảm bảo rằng file cấu hình đã được khai báo trong `.gitignore`. Tuyệt đối không push (đẩy) API Key của bạn lên GitHub để tránh bị đánh cắp tài khoản.
+   - Tạo file ẩn `server/data/.config.yaml` để ghi đè cấu hình bảo mật.
+   - Bổ sung các API Keys bắt buộc:
+     ```yaml
+     telegram:
+       bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
+       chat_id: "YOUR_CHAT_ID"
+     LLM:
+       GroqLLM:
+         api_key: "YOUR_GROQ_API_KEY"
+       GeminiLLM:
+         api_key: "YOUR_GEMINI_API_KEY"
+     ```
+4. Khởi chạy Server:
+   - **Chạy trực tiếp (Local)**: Chạy lệnh `python app.py` (Hoặc có thể sử dụng shell script: `run_server.bat` cho Windows và `./run_server.sh` cho macOS/Linux).
+   - **Chạy qua Docker**: Chạy lệnh `docker compose up --build`.
+
+### 5.6 Giám sát Hệ thống
+- Giao diện **Web Dashboard** được tự động khởi chạy tại: `http://localhost:8003/`
+- Mở Telegram, truy cập Bot của bạn và gửi lệnh `/start` để kết nối.
+
+---
+
+<div align="center">
+  <p>Được phát triển với ❤️ dành cho sự an toàn và sức khỏe của trẻ em.</p>
+</div>
