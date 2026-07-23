@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="docs/assets/logo.png" alt="Logo" width="150"/> <!-- Placeholder cho Logo -->
-  <h1>👶 Baby Cry Detector & Smart Soother</h1>
-  <p><strong>Hệ thống Giám sát & Chăm sóc Trẻ Sơ sinh Thông minh ứng dụng AI & IoT</strong></p>
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0ea5e9&height=220&section=header&text=Baby%20Cry%20Detector&fontSize=50&fontColor=ffffff&desc=Smart%20Soother%20IoT%20System&descSize=22&descColor=e0f2fe&fontAlignY=40&descAlignY=65" alt="Baby Cry Detector Header" width="100%"/>
+  <br/><br/>
+  <p><strong>👶 Hệ thống Giám sát & Chăm sóc Trẻ Sơ sinh Thông minh ứng dụng AI & IoT</strong></p>
   
   [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org)
   [![ESP32](https://img.shields.io/badge/Hardware-ESP32-red.svg)](https://www.espressif.com/)
@@ -51,6 +51,14 @@ Hệ thống sử dụng cảm biến và mạng nơ-ron để nhận diện ch�
 
 ## 🏗 4. Kiến trúc Hệ thống & Nền tảng Công nghệ (Architecture)
 
+<div align="center">
+  <!-- Placeholder: Đưa ảnh System Architecture vào docs/assets/system_architecture.png -->
+  <img src="docs/assets/system_architecture.png" alt="System Architecture Diagram" width="90%" style="border-radius: 8px;"/>
+  <br/>
+  <em>Sơ đồ Kiến trúc Hệ thống (System Architecture) phân chia tầng Hardware, Server, và Client</em>
+</div>
+<br/>
+
 Dự án được xây dựng dựa trên kiến trúc **Event-Driven Multi-Agent**:
 
 - **Backend Server (Python / aiohttp)**: Máy chủ trung tâm hiệu năng cao, xử lý luồng WebSockets, API `/api/cry`, đồng bộ hóa State và gọi các Plugin/Agent mở rộng.
@@ -67,13 +75,23 @@ Dự án được xây dựng dựa trên kiến trúc **Event-Driven Multi-Agen
 ## 🚀 5. Hướng dẫn Cài đặt & Triển khai (Installation Guide)
 
 ### 5.1 Danh sách Phần cứng cần chuẩn bị (Hardware Requirements)
-Để triển khai thực tế toàn bộ hệ thống, bạn cần chuẩn bị các linh kiện sau:
-- **Module Camera ESP32-CAM**: Sử dụng để chụp ảnh, stream video phục vụ tính năng Pose Detection và xác minh hình ảnh qua Telegram.
-- **Board vi điều khiển ESP32 Core**: Làm bộ điều khiển trung tâm tại Edge, thu thập âm thanh, điều khiển động cơ và đọc cảm biến.
-- **Microphone (Ví dụ: INMP441)**: Thu âm thanh chất lượng cao để gửi luồng âm thanh phân tích tiếng khóc (VAD / YAMNet).
-- **Động cơ Servo**: Lắp đặt vào cơ cấu nôi/võng để thực hiện tính năng "Ru võng tự động".
-- **Module Loa / Còi Buzzer**: Dùng để phát nhạc ru dỗ dành trẻ và phát âm thanh báo động cục bộ (Offline Fallback).
-- **Cảm biến Môi trường (DHT11 / DHT22)**: (Tùy chọn) Để thu thập dữ liệu nhiệt độ, độ ẩm phòng hiển thị lên Web Dashboard.
+
+<div align="center">
+  <!-- Placeholder: Đưa ảnh các linh kiện vào docs/assets/hardware_components.png -->
+  <img src="docs/assets/hardware_components.png" alt="Hardware Components" width="80%" style="border-radius: 8px;"/>
+</div>
+<br/>
+
+Để triển khai thực tế toàn bộ hệ thống, bạn cần chuẩn bị các linh kiện chính (Main Components) sau:
+- **ESP32 DevKit V1**: Vi điều khiển trung tâm (Đóng vai trò Edge/Gateway).
+- **ESP32 Cam**: Module Camera xử lý luồng stream video/hình ảnh.
+- **MAX98357A & Loa (Speaker)**: Module amply I2S khuếch đại âm thanh để phát nhạc ru.
+- **OLED 0.96"**: Màn hình hiển thị trạng thái hệ thống cục bộ.
+- **INMP441**: Microphone I2S đa hướng thu tín hiệu âm thanh (tiếng khóc) gửi lên Server.
+- **DHT11**: Cảm biến đo nhiệt độ và độ ẩm phòng.
+- **Relay Module 5V & Motor**: Rơ-le điều khiển đóng ngắt động cơ rung hoặc quạt.
+- **Tactile Switch**: Nút nhấn vật lý (Button) để tương tác tại chỗ.
+- **Servo (Micro Servo SG90)**: Điều khiển cơ cấu ru võng/nôi tự động.
 
 ### 5.2 Sơ đồ Kết nối Phần cứng (Wiring Diagram)
 <div align="center">
