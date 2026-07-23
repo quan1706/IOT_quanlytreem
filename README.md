@@ -30,7 +30,7 @@ Hệ thống sử dụng cảm biến và mạng nơ-ron để nhận diện ch�
 ## 📸 2. Hình ảnh Sản phẩm (Product Showcase)
 
 <div align="center">
-  <img src="docs/assets/web_tracking.png?v=2" alt="Giao diện Web Tracking Dashboard" width="80%" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 10px;"/>
+  <img src="docs/assets/web_tracking12.png" alt="Giao diện Web Tracking Dashboard" width="80%" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 10px;"/>
   <br/>
   <em>Giao diện Web Dashboard giám sát và điều khiển thời gian thực</em>
 </div>
