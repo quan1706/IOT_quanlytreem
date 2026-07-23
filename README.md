@@ -30,11 +30,10 @@ Hệ thống sử dụng cảm biến và mạng nơ-ron để nhận diện ch�
 ## 📸 2. Hình ảnh Sản phẩm (Product Showcase)
 
 <div align="center">
-  <!-- Placeholders: Bạn có thể đưa hình ảnh giao diện thực tế vào folder docs/assets/ -->
-  <img src="docs/assets/dashboard_preview.png" alt="Web Dashboard Preview" width="45%" style="border-radius: 8px;"/> 
-  <img src="docs/assets/telegram_bot_preview.png" alt="Telegram Bot Interface" width="45%" style="border-radius: 8px;"/>
+  <img src="docs/assets/baby_crying.png" alt="Cảnh báo tiếng khóc" width="45%" style="border-radius: 8px;"/> 
+  <img src="docs/assets/baby_nam_up.png" alt="Cảnh báo tư thế nằm sấp" width="45%" style="border-radius: 8px;"/>
   <br/>
-  <em>Giao diện Web Dashboard (trái) và Thông báo khẩn cấp qua Telegram Bot (phải)</em>
+  <em>Thông báo khẩn cấp khi Phát hiện tiếng khóc (trái) và Phát hiện bé nằm úp (phải) qua Telegram Bot</em>
 </div>
 
 ---
