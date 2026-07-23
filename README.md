@@ -30,14 +30,15 @@ Hệ thống sử dụng cảm biến và mạng nơ-ron để nhận diện ch�
 ## 📸 2. Hình ảnh Sản phẩm (Product Showcase)
 
 <div align="center">
-  <img src="docs/assets/web_tracking.png" alt="Giao diện Web Tracking Dashboard" width="90%" style="border-radius: 8px; margin-bottom: 15px;"/>
+  <img src="docs/assets/web_tracking.png" alt="Giao diện Web Tracking Dashboard" width="80%" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 10px;"/>
   <br/>
   <em>Giao diện Web Dashboard giám sát và điều khiển thời gian thực</em>
 </div>
 <br/>
 <div align="center">
-  <img src="docs/assets/baby_crying.png" alt="Cảnh báo tiếng khóc" width="45%" style="border-radius: 8px;"/> 
-  <img src="docs/assets/baby_nam_up.png" alt="Cảnh báo tư thế nằm sấp" width="45%" style="border-radius: 8px;"/>
+  <img src="docs/assets/baby_crying.png" alt="Cảnh báo tiếng khóc" width="48%" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-right: 2%;"/>
+  <img src="docs/assets/baby_nam_up.png" alt="Cảnh báo tư thế nằm sấp" width="48%" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"/>
+  <br/>
   <br/>
   <em>Thông báo khẩn cấp khi Phát hiện tiếng khóc (trái) và Phát hiện bé nằm úp (phải) qua Telegram Bot</em>
 </div>
